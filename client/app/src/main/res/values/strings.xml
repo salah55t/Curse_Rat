@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Curse RAT</string>
+    <string name="notification_title">Curse Service</string>
+    <string name="notification_text">Monitoring system security...</string>
+    <string name="notification_channel_name">Curse Service Channel</string>
+    <string name="notification_channel_id">CurseServiceChannel</string>
+</resources>

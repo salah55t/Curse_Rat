@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>THOR — DEPLOYMENT_STATION</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #cc0000;
+    --red-bright: #ff1a1a;
+    --red-dim: #7a0000;
+    --red-glow: rgba(204,0,0,0.4);
+    --bg: #000000;
+    --border: rgba(180,0,0,0.5);
+    --text: #e8e8e8;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-display: 'Orbitron', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; overflow: hidden; }
+
+  .scanlines {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+  }
+
+  #page {
+    position: relative; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; padding: 40px;
+    background: radial-gradient(circle at center, #1a0000 0%, #000 100%);
+  }
+
+  .deploy-card {
+    width: 100%; max-width: 500px;
+    background: rgba(10,0,0,0.85);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 0 40px rgba(255,0,0,0.1);
+  }
+
+  .title {
+    font-family: var(--font-display); font-size: 18px; color: var(--red-bright);
+    letter-spacing: 4px; margin-bottom: 25px; text-align: center;
+    text-shadow: 0 0 10px var(--red-glow);
+  }
+
+  .form-group { margin-bottom: 20px; }
+  .label { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--red-dim); margin-bottom: 8px; letter-spacing: 2px; }
+  
+  input {
+    width: 100%; background: #000; border: 1px solid var(--border);
+    padding: 12px; color: #fff; font-family: var(--font-mono); font-size: 12px;
+    border-radius: 6px; outline: none; transition: border-color 0.2s;
+  }
+  input:focus { border-color: var(--red-bright); box-shadow: 0 0 10px var(--red-glow); }
+
+  .deploy-btn {
+    width: 100%; padding: 14px; background: var(--red-dim); border: 1px solid var(--red-bright);
+    color: #fff; font-family: var(--font-display); font-size: 12px; letter-spacing: 2px;
+    cursor: pointer; border-radius: 6px; transition: all 0.2s;
+    margin-top: 10px;
+  }
+  .deploy-btn:hover:not(:disabled) { background: var(--red-bright); box-shadow: 0 0 20px var(--red-glow); transform: translateY(-2px); }
+  .deploy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #status-box {
+    margin-top: 25px; padding: 15px; background: rgba(0,0,0,0.9);
+    border: 1px solid rgba(180,0,0,0.2); border-radius: 6px;
+    font-family: var(--font-mono); font-size: 10px; color: #888;
+    height: 120px; overflow-y: auto;
+  }
+  .log-line { margin-bottom: 4px; border-left: 2px solid var(--red-dim); padding-left: 8px; }
+  .log-line.success { border-color: var(--green-ok); color: var(--green-ok); }
+  
+  .download-link { color: var(--red-bright); text-decoration: underline; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+
+<div id="page">
+  <div class="deploy-card">
+    <div class="title">// DEPLOY_STATION</div>
+    
+    <div class="form-group">
+      <span class="label">TARGET_HOST_IP</span>
+      <input type="text" id="host-ip" placeholder="e.g. 192.168.1.100">
+    </div>
+
+    <div class="form-group">
+      <span class="label">TARGET_PORT</span>
+      <input type="number" id="host-port" value="7777">
+    </div>
+
+    <button id="build-btn" class="deploy-btn" onclick="startBuild()">INITIALIZE_BUILD</button>
+
+    <div id="status-box">
+      <div class="log-line">SYSTEM_IDLE... AWAITING_PARAMETERS</div>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  const buildBtn = document.getElementById('build-btn');
+  const statusBox = document.getElementById('status-box');
+
+  function log(msg, type = '') {
+    const line = document.createElement('div');
+    line.className = 'log-line ' + type;
+    line.textContent = `> [${new Date().toLocaleTimeString()}] ${msg}`;
+    statusBox.appendChild(line);
+    statusBox.scrollTop = statusBox.scrollHeight;
+  }
+
+  function startBuild() {
+    const ip = document.getElementById('host-ip').value;
+    const port = document.getElementById('host-port').value;
+
+    if (!ip) { log('ERROR: INVALID_HOST', 'err'); return; }
+
+    buildBtn.disabled = true;
+    log('INITIALIZING_COMPILER...');
+    socket.emit('build_apk', { ip, port });
+  }
+
+  socket.on('build_log', (data) => {
+    // Basic cleaning of terminal output
+    const lines = data.split('\n');
+    lines.forEach(l => {
+      if (l.trim()) log(l.trim());
+    });
+  });
+
+  socket.on('build_success', (file) => {
+    const link = document.createElement('a');
+    link.href = '/output/' + file;
+    link.className = 'download-link';
+    link.textContent = 'DOWNLOAD_PAYLOAD';
+    link.target = '_blank';
+    
+    const container = document.createElement('div');
+    container.className = 'log-line success';
+    container.textContent = 'BUILD_COMPLETE: ';
+    container.appendChild(link);
+    
+    statusBox.appendChild(container);
+    statusBox.scrollTop = statusBox.scrollHeight;
+    buildBtn.disabled = false;
+  });
+</script>
+</body>
+</html>

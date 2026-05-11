@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>THOR — SETTINGS</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{--red-bright:#ff1a1a;--red-glow:rgba(204,0,0,0.4);}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:100%;height:100%;background:#000;color:#e8e8e8;font-family:'Share Tech Mono',monospace;display:flex;align-items:center;justify-content:center;overflow:hidden;user-select:none;}
+  .page-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;}
+  .page-title{font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;letter-spacing:10px;color:var(--red-bright);text-shadow:0 0 20px var(--red-bright),0 0 50px var(--red-glow);animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{text-shadow:0 0 20px var(--red-bright),0 0 50px var(--red-glow)}50%{text-shadow:0 0 30px var(--red-bright),0 0 80px rgba(204,0,0,0.6)}}
+  .page-sub{font-size:11px;color:rgba(180,0,0,0.6);letter-spacing:4px;}
+  .page-line{width:200px;height:1px;background:linear-gradient(90deg,transparent,var(--red-bright),transparent);animation:ls 2s ease-in-out infinite;}
+  @keyframes ls{0%,100%{opacity:0.4}50%{opacity:1}}
+  .blink-cursor::after{content:'_';animation:blink 1s step-end infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .status-text{font-size:10px;color:rgba(100,0,0,0.8);letter-spacing:2px;}
+</style>
+</head>
+<body>
+<div class="page-center">
+  <div class="page-line"></div>
+  <div class="page-title">SETTINGS</div>
+  <div class="page-sub blink-cursor">// Module under construction</div>
+  <div class="status-text">[ BACKEND INTEGRATION PENDING ]</div>
+  <div class="page-line"></div>
+</div>
+</body>
+</html>

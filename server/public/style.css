@@ -1,0 +1,645 @@
+:root {
+    --bg-dark: #050505;
+    --card-bg: #0d0d0d;
+    --text-main: #f0f0f0;
+    --text-dim: #a0a0a0;
+    --primary: #ff0000; /* Bright Red */
+    --primary-dim: #800000; /* Dark Red */
+    --border: #222222;
+    --console-bg: #000000;
+    --accent: #1a1a1a;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    line-height: 1.5;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    padding: 1rem 2rem;
+    background-color: var(--card-bg);
+    border-bottom: 2px solid var(--primary-dim);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    text-transform: uppercase;
+    color: #444444; /* Dark Grey */
+}
+
+.logo span {
+    color: var(--primary); /* Bright Red */
+    text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+}
+
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.badge.red { background: rgba(255, 0, 0, 0.1); color: var(--primary); border: 1px solid var(--primary-dim); }
+.badge.green { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid #064e3b; }
+.badge.orange { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid #78350f; }
+
+main {
+    flex: 1;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    overflow: hidden;
+}
+
+.top-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 1.5rem;
+    min-height: 400px;
+}
+
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    position: relative;
+}
+
+.card h2 {
+    font-size: 0.85rem;
+    margin-bottom: 1.5rem;
+    color: var(--primary);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-left: 3px solid var(--primary);
+    padding-left: 0.75rem;
+}
+
+.config-card #build-btn {
+    margin-top: 1.5rem; /* Spacing from LPORT box */
+}
+
+input {
+    width: 100%;
+    background: #000;
+    border: 1px solid var(--border);
+    color: #ff0000;
+    padding: 0.75rem;
+    border-radius: 2px;
+    outline: none;
+    font-family: 'Fira Code', monospace;
+}
+
+input:focus {
+    border-color: var(--primary);
+}
+
+button {
+    cursor: pointer;
+    font-weight: 800; /* Bolder */
+    padding: 0.75rem 1rem;
+    border-radius: 2px;
+    border: 1px solid transparent;
+    transition: all 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.8rem;
+    color: #000 !important; /* Black text */
+}
+
+.primary-btn { background: var(--primary); }
+.primary-btn:hover { background: #cc0000; box-shadow: 0 0 15px rgba(255,0,0,0.4); }
+
+.success-btn { background: #10b981; }
+.danger-btn { background: var(--primary); }
+
+/* Listener controls repositioning */
+.target-card h2 {
+    display: inline-block;
+}
+
+.listener-controls {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.5rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.listener-controls .form-group {
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.listener-controls label {
+    margin-bottom: 0;
+    white-space: nowrap;
+    font-size: 0.7rem;
+}
+
+.listener-controls input {
+    width: 80px;
+    padding: 0.4rem;
+    font-size: 0.8rem;
+}
+
+.listener-controls button {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.7rem;
+}
+
+.table-container {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    margin-top: 0.5rem; /* Move up */
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+th {
+    background: #0a0a0a;
+    color: var(--primary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.action-btns button {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.7rem;
+    background: #1a1a1a;
+    color: #eee !important; /* Keep icon button text light if needed, but instructions said black bold */
+    border: 1px solid #333;
+    margin-right: 0.25rem;
+}
+
+/* Specific for Exploit button to have black text as requested */
+.action-btns .primary-btn {
+    color: #000 !important;
+}
+
+.console {
+    flex: 1;
+    background: var(--console-bg);
+    padding: 1rem;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85rem;
+    overflow-y: auto;
+    color: #ff0000;
+    border: 1px solid var(--border);
+}
+
+.log-time { color: #555; }
+
+/* Exploit Modal UI */
+.exploit-container {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    grid-template-rows: auto 1fr;
+    height: 80vh;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.exploit-nav {
+    grid-row: 1 / 3;
+    background: #0a0a0a;
+    border-right: 1px solid var(--border);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.nav-item {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-weight: 600;
+    color: var(--text-dim);
+}
+
+.nav-item:hover, .nav-item.active {
+    background: rgba(255,0,0,0.1);
+    color: var(--primary);
+    border-color: var(--primary-dim);
+}
+
+.exploit-content {
+    background: #000;
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.exploit-header {
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+
+/* File Manager Interactive */
+.file-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+}
+
+.file-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.5rem;
+    cursor: pointer;
+    text-align: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.file-item:hover {
+    background: rgba(255,255,255,0.05);
+    border-color: var(--border);
+}
+
+.file-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.file-name {
+    font-size: 0.75rem;
+    word-break: break-all;
+    max-height: 2.4rem;
+    overflow: hidden;
+}
+
+/* Camera Feed */
+.camera-view {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #000;
+    border: 2px solid var(--primary-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.camera-view img {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.camera-controls {
+    margin-top: 1rem;
+    display: flex;
+    gap: 1rem;
+}
+
+/* Modal Enhancements */
+.modal-content {
+    background: var(--card-bg);
+    border: 1px solid var(--primary-dim);
+    box-shadow: 0 0 50px rgba(255,0,0,0.2);
+    position: relative;
+}
+
+/* Bigger and Repositioned Close Button */
+.close {
+    position: absolute;
+    right: 1.5rem;
+    top: 1.5rem;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: #000;
+    background: var(--primary);
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-weight: 900;
+    z-index: 1000;
+}
+
+.close:hover {
+    background: #fff;
+}
+
+/* Mic Specific Styles */
+.mic-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+select {
+    width: 100%;
+    background: #000;
+    border: 1px solid var(--border);
+    color: var(--primary);
+    padding: 0.5rem;
+    border-radius: 2px;
+    outline: none;
+    font-family: 'Fira Code', monospace;
+    cursor: pointer;
+}
+
+.control-group {
+    background: #0a0a0a;
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    text-align: center;
+}
+
+.control-group h4 {
+    margin-bottom: 1rem;
+    color: var(--primary);
+    text-transform: uppercase;
+    font-size: 0.9rem;
+}
+
+.hint {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 0.75rem;
+}
+
+.visualizer-container {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 2rem;
+    background: #050505;
+    border: 1px solid var(--border);
+}
+
+.bar {
+    width: 10px;
+    height: 10px;
+    background: var(--primary);
+    transition: height 0.1s ease;
+}
+
+#mic-status {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.8rem;
+    color: var(--primary);
+}
+
+/* Location Card */
+.location-card {
+    background: #0a0a0a;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.location-history-container {
+    margin-top: 1.5rem;
+    background: #0a0a0a;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem;
+}
+
+.location-history-container h4 {
+    color: var(--primary);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+
+.history-table-wrapper {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+}
+
+.history-table-wrapper table {
+    width: 100%;
+    font-size: 0.8rem;
+}
+
+/* Keylog & Notification Entries */
+.log-entry-item {
+    background: #0a0a0a;
+    border: 1px solid var(--border);
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+}
+
+.log-entry-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px solid #1a1a1a;
+    padding-bottom: 0.25rem;
+}
+
+.log-app-name {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+.log-time-stamp {
+    color: var(--text-dim);
+}
+
+.log-content {
+    font-size: 0.85rem;
+    word-break: break-all;
+}
+
+.keylog-data {
+    color: #10b981; /* Green for keypresses */
+    font-family: 'Fira Code', monospace;
+}
+
+.location-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.75rem;
+}
+
+.location-time {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-family: 'Fira Code', monospace;
+}
+
+.location-body p {
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.location-body strong {
+    color: var(--primary);
+    display: inline-block;
+    width: 100px;
+}
+
+.location-footer {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+#map-container {
+    width: 100%;
+    height: 600px;
+    margin-top: 1rem;
+    border: 2px solid var(--primary-dim);
+    border-radius: 4px;
+    background: #000;
+}
+
+/* Ensure Leaflet markers don't get messed up by global img styles */
+.leaflet-container img {
+    max-width: none !important;
+}
+
+/* Screen Share & Reader UI */
+.screen-view-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    background: #000;
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.screen-canvas-wrapper {
+    width: 100%;
+    max-width: 400px; /* Standard phone aspect ratio width */
+    aspect-ratio: 9/16;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+#screen-placeholder {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+}
+
+.screen-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+    background: #0a0a0a;
+    border: 1px solid var(--border);
+}
+
+.nav-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.screen-reader-view {
+    width: 100%;
+    height: 600px;
+    background: #000;
+    border: 1px solid var(--primary-dim);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.reader-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    background: #000;
+}
+
+.reader-node {
+    position: absolute;
+    border: 1px solid #333;
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 0.6rem;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    pointer-events: none;
+    word-break: break-all;
+}
+
+.reader-node.clickable {
+    border-color: var(--primary);
+    background: rgba(255, 0, 0, 0.1);
+    pointer-events: auto;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.reader-node.clickable:hover {
+    background: rgba(255, 0, 0, 0.3);
+    border-color: #fff;
+}
+
+.reader-node.clickable:active {
+    background: white !important;
+    transition: background 0.05s;
+}
+
