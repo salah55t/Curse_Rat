@@ -1,8 +1,8 @@
 FROM node:18-slim
 
-# تثبيت Java والأدوات المطلوبة لبناء APK
+# تثبيت Java 17 والأدوات المطلوبة
 RUN apt-get update && apt-get install -y \
-    openjdk-11-jdk-headless \
+    openjdk-17-jdk-headless \
     wget \
     unzip \
     && rm -rf /var/lib/apt/lists/*
