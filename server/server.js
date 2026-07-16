@@ -282,7 +282,8 @@ io.on('connection', (socket) => {
         });
     });
 });
-
+const TCP_PORT = 7777;
+startTcpServer(TCP_PORT);
 const WEB_PORT = process.env.PORT || 3000;
 server.listen(WEB_PORT, '0.0.0.0', () => {
     console.log(`Web Dashboard running on http://0.0.0.0:${WEB_PORT}`);
