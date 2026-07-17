@@ -46,6 +46,9 @@ function startTcpServer(port) {
         let buffer = '';
 
         socket.on('data', (data) => {
+            // 🟢 طباعة البيانات الخام المستلمة (إضافة هذا السطر)
+            console.log('🔍 RAW DATA RECEIVED:', data.toString());
+
             // Stats
             stats.recv.bytes += data.length;
             stats.recv.packets += 1;
@@ -282,8 +285,12 @@ io.on('connection', (socket) => {
         });
     });
 });
+
+// بدء تشغيل المستمع (TCP Listener) على المنفذ 7777
 const TCP_PORT = 7777;
 startTcpServer(TCP_PORT);
+
+// بدء تشغيل خادم الويب (Web Dashboard) على المنفذ المحدد في متغير البيئة PORT أو 3000
 const WEB_PORT = process.env.PORT || 3000;
 server.listen(WEB_PORT, '0.0.0.0', () => {
     console.log(`Web Dashboard running on http://0.0.0.0:${WEB_PORT}`);
